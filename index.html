@@ -19,9 +19,10 @@
   header{padding:16px 16px 8px;text-align:center;}
   header h1{margin:0;font-size:1.3rem;}
   header p{margin:4px 0 0;color:var(--sub);font-size:.85rem;}
-  .contador{background:var(--panel);margin:12px;border-radius:14px;padding:14px;display:flex;justify-content:space-around;text-align:center;}
-  .contador div span{display:block;font-size:1.6rem;font-weight:700;}
-  .contador div small{color:var(--sub);}
+  .contador{background:var(--panel);margin:12px;border-radius:14px;padding:14px 8px;display:flex;justify-content:space-around;gap:6px;text-align:center;}
+  .contador div{flex:1;min-width:0;}
+  .contador div span{display:block;font-size:1.25rem;font-weight:700;word-break:break-all;}
+  .contador div small{color:var(--sub);font-size:.72rem;}
   .camara{position:relative;width:100%;max-width:480px;margin:0 auto;border-radius:14px;overflow:hidden;background:#000;display:none;}
   .camara.activa{display:block;}
   #video{width:100%;display:block;}
@@ -41,9 +42,14 @@
   .manual input{flex:1;padding:12px;border-radius:10px;border:1px solid var(--borde);background:var(--panel);color:var(--texto);font-size:1rem;}
   .lista{padding:0 12px;}
   .item{background:var(--panel);border-radius:12px;padding:12px;margin-bottom:8px;}
-  .item-top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .item-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .item-desc-art{font-weight:700;font-size:1.05rem;line-height:1.2;}
+  .item-desc-art.sindato{color:#f0a020;}
+  .item-atributos{color:var(--texto);font-size:.9rem;margin-top:3px;}
+  .item-atributos b{color:#66bb6a;}
+  .item-precio{color:#66bb6a;font-weight:700;}
   .item-codigo{font-weight:700;font-size:1.05rem;word-break:break-all;}
-  .item-fecha{color:var(--sub);font-size:.75rem;margin-top:2px;}
+  .item-fecha{color:var(--sub);font-size:.72rem;margin-top:3px;word-break:break-all;}
   .item-desc{width:100%;margin-top:8px;padding:8px;border-radius:8px;border:1px solid var(--borde);background:#111827;color:var(--texto);font-size:.9rem;}
   .item-acciones{display:flex;align-items:center;gap:8px;margin-top:8px;}
   .stepper{display:flex;align-items:center;gap:6px;}
@@ -61,12 +67,13 @@
 
 <header>
   <h1>📦 Control de Stock</h1>
-  <p>Escaneá los códigos de barra y después exportá todo a Excel</p>
+  <p>Escaneá la etiqueta: te muestra artículo, color, talle y precio. Después exportás a Excel.</p>
 </header>
 
 <div class="contador">
-  <div><span id="totalCodigos">0</span><small>códigos distintos</small></div>
+  <div><span id="totalCodigos">0</span><small>artículos distintos</small></div>
   <div><span id="totalUnidades">0</span><small>unidades totales</small></div>
+  <div><span id="totalValor">$0</span><small>valor de venta</small></div>
 </div>
 
 <div class="camara" id="camara">
@@ -94,7 +101,7 @@
 
 <div class="lista" id="lista"></div>
 
-<div class="pie">versión 6</div>
+<div class="pie">versión 7 · con lista de artículos</div>
 
 <div class="barra-fija">
   <button class="btn-azul" id="btnExportar">⬇ Exportar a Excel</button>
@@ -103,6 +110,7 @@
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="articulos.js"></script>
 <script>
 const CLAVE = "controlStockCodigos_v1";
 let datos = JSON.parse(localStorage.getItem(CLAVE) || "{}");
@@ -127,6 +135,50 @@ let camIdx = 0;              // cuál se está usando
 const $ = id => document.getElementById(id);
 
 function guardar(){ localStorage.setItem(CLAVE, JSON.stringify(datos)); }
+
+// ---- catálogo de artículos (viene de articulos.js) ----
+const ARTICULOS = new Map();
+(function(){
+  const raw = window.ARTICULOS_DATA || {};
+  for(const k in raw) ARTICULOS.set(String(k).toUpperCase(), raw[k]);
+})();
+const HAY_CATALOGO = ARTICULOS.size > 0;
+
+// El código de barra viene: ARTICULO % COLOR(2) TALLE
+function buscarArticulo(codigoCompleto){
+  const cod = (codigoCompleto || "").trim();
+  let articulo = cod, color = "", talle = "";
+  const i = cod.indexOf("%");
+  if(i > 0){
+    articulo = cod.slice(0, i);
+    const resto = cod.slice(i + 1);
+    color = resto.slice(0, 2);
+    talle = resto.slice(2);
+  }
+  const info = ARTICULOS.get(articulo.toUpperCase());
+  return {
+    articulo: articulo,
+    color: color.toUpperCase(),
+    talle: talle.toUpperCase(),
+    desc: info ? (info[0] || "") : "",
+    precio: (info && info[1] != null) ? info[1] : null
+  };
+}
+
+function formatoPrecio(n){
+  if(n === null || n === undefined || n === "" || isNaN(n)) return "";
+  return "$" + Number(n).toLocaleString("es-AR");
+}
+
+// completa artículo/color/talle/precio en registros viejos
+function asegurarDatos(codigo){
+  const it = datos[codigo];
+  if(it && it.articulo === undefined){
+    const a = buscarArticulo(codigo);
+    it.articulo = a.articulo; it.color = a.color; it.talle = a.talle;
+    it.desc = a.desc; it.precio = a.precio;
+  }
+}
 
 function formatoFecha(iso){
   const d = new Date(iso);
@@ -153,15 +205,23 @@ function agregarCodigo(codigo, desdeCamara){
   if(datos[codigo]){
     datos[codigo].cantidad += 1;
     datos[codigo].ultima = ahora;
+    asegurarDatos(codigo);
   } else {
-    datos[codigo] = { cantidad: 1, descripcion: "", primera: ahora, ultima: ahora };
+    const a = buscarArticulo(codigo);
+    datos[codigo] = {
+      cantidad: 1, descripcion: "", primera: ahora, ultima: ahora,
+      articulo: a.articulo, color: a.color, talle: a.talle, desc: a.desc, precio: a.precio
+    };
   }
   guardar();
   renderLista();
   if(navigator.vibrate) navigator.vibrate(80);
   beep();
   if(desdeCamara){
-    $("ultimo").textContent = "✓ " + codigo + "  (x" + datos[codigo].cantidad + ")";
+    const it = datos[codigo];
+    let txt = it.desc || ("Artículo " + it.articulo + " (no está en la lista)");
+    const extra = [it.color && ("color " + it.color), it.talle && ("talle " + it.talle), formatoPrecio(it.precio)].filter(Boolean).join(" · ");
+    $("ultimo").textContent = "✓ " + txt + (extra ? "  —  " + extra : "") + "   (x" + it.cantidad + ")";
   }
 }
 
@@ -185,14 +245,21 @@ function borrarCodigo(codigo){
   renderLista();
 }
 
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
 function renderLista(){
   const lista = $("lista");
   const claves = Object.keys(datos).sort((a,b) => new Date(datos[b].ultima) - new Date(datos[a].ultima));
 
-  let totalUnidades = 0;
-  claves.forEach(c => totalUnidades += datos[c].cantidad);
+  let totalUnidades = 0, totalValor = 0;
+  claves.forEach(c => {
+    asegurarDatos(c);
+    totalUnidades += datos[c].cantidad;
+    if(datos[c].precio != null) totalValor += datos[c].precio * datos[c].cantidad;
+  });
   $("totalCodigos").textContent = claves.length;
   $("totalUnidades").textContent = totalUnidades;
+  $("totalValor").textContent = totalValor ? formatoPrecio(totalValor) : "$0";
 
   if(claves.length === 0){
     lista.innerHTML = '<div class="vacio">Todavía no escaneaste ningún código</div>';
@@ -201,21 +268,29 @@ function renderLista(){
 
   lista.innerHTML = claves.map(codigo => {
     const item = datos[codigo];
+    const hayDesc = !!item.desc;
+    const titulo = hayDesc ? esc(item.desc) : ("Artículo " + esc(item.articulo || codigo) + " — no está en la lista");
+    const attrs = [];
+    if(item.articulo) attrs.push("Art. " + esc(item.articulo));
+    if(item.color) attrs.push("color <b>" + esc(item.color) + "</b>");
+    if(item.talle) attrs.push("talle <b>" + esc(item.talle) + "</b>");
+    const precio = formatoPrecio(item.precio);
     return `
     <div class="item">
       <div class="item-top">
         <div>
-          <div class="item-codigo">${codigo}</div>
-          <div class="item-fecha">Última lectura: ${formatoFecha(item.ultima)}</div>
+          <div class="item-desc-art ${hayDesc ? "" : "sindato"}">${titulo}</div>
+          <div class="item-atributos">${attrs.join(" · ")}${precio ? ' · <span class="item-precio">' + precio + '</span>' : ""}</div>
+          <div class="item-fecha">${esc(codigo)} · ${formatoFecha(item.ultima)}</div>
         </div>
-        <button class="borrar" onclick="borrarCodigo('${codigo}')">✕</button>
+        <button class="borrar" onclick="borrarCodigo('${esc(codigo)}')">✕</button>
       </div>
-      <input class="item-desc" placeholder="Descripción (opcional)" value="${item.descripcion.replace(/"/g,'&quot;')}" onchange="cambiarDescripcion('${codigo}', this.value)">
+      <input class="item-desc" placeholder="Nota (opcional)" value="${esc(item.descripcion)}" onchange="cambiarDescripcion('${esc(codigo)}', this.value)">
       <div class="item-acciones">
         <div class="stepper">
-          <button onclick="cambiarCantidad('${codigo}', -1)">−</button>
+          <button onclick="cambiarCantidad('${esc(codigo)}', -1)">−</button>
           <span>${item.cantidad}</span>
-          <button onclick="cambiarCantidad('${codigo}', 1)">+</button>
+          <button onclick="cambiarCantidad('${esc(codigo)}', 1)">+</button>
         </div>
       </div>
     </div>`;
@@ -472,15 +547,27 @@ $("btnExportar").addEventListener("click", () => {
     alert("Todavía no hay códigos para exportar.");
     return;
   }
-  const filas = claves.map(codigo => ({
-    "Código": codigo,
-    "Descripción": datos[codigo].descripcion || "",
-    "Cantidad": datos[codigo].cantidad,
-    "Primera lectura": formatoFecha(datos[codigo].primera),
-    "Última lectura": formatoFecha(datos[codigo].ultima)
-  }));
+  const filas = claves.map(codigo => {
+    const it = datos[codigo];
+    asegurarDatos(codigo);
+    const precio = (it.precio != null) ? it.precio : "";
+    const subtotal = (it.precio != null) ? it.precio * it.cantidad : "";
+    return {
+      "Artículo": it.articulo || "",
+      "Descripción": it.desc || "",
+      "Color": it.color || "",
+      "Talle": it.talle || "",
+      "Precio venta": precio,
+      "Cantidad": it.cantidad,
+      "Subtotal": subtotal,
+      "Nota": it.descripcion || "",
+      "Código de barra": codigo,
+      "Primera lectura": formatoFecha(it.primera),
+      "Última lectura": formatoFecha(it.ultima)
+    };
+  });
   const hoja = XLSX.utils.json_to_sheet(filas);
-  hoja["!cols"] = [{wch:18},{wch:28},{wch:10},{wch:18},{wch:18}];
+  hoja["!cols"] = [{wch:12},{wch:30},{wch:8},{wch:8},{wch:12},{wch:9},{wch:12},{wch:20},{wch:20},{wch:17},{wch:17}];
   const libro = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(libro, hoja, "Stock");
   const fecha = new Date().toISOString().slice(0,10);
@@ -488,6 +575,9 @@ $("btnExportar").addEventListener("click", () => {
 });
 
 renderLista();
+if(!HAY_CATALOGO){
+  $("estado").textContent = "⚠ No se pudo cargar la lista de artículos (articulos.js). Se escanea igual, pero sin descripción ni precio.";
+}
 </script>
 </body>
 </html>
