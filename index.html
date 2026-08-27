@@ -26,8 +26,9 @@
   .camara.activa{display:block;}
   #video{width:100%;display:block;}
   #reader{width:100%;}
-  .mira{position:absolute;left:8%;right:8%;top:50%;height:32%;transform:translateY(-50%);border:3px solid #66bb6a;border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.25);pointer-events:none;display:none;}
+  .mira{position:absolute;left:6%;right:6%;top:50%;height:20%;transform:translateY(-50%);border:3px solid #66bb6a;border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.22);pointer-events:none;display:none;}
   .camara.activa .mira{display:block;}
+  #diag{text-align:center;color:#6b7280;font-size:.72rem;margin:2px 12px;min-height:1em;}
   .botones{display:flex;gap:10px;padding:0 12px;margin:12px 0;flex-wrap:wrap;}
   button{border:none;border-radius:12px;padding:14px 16px;font-size:1rem;font-weight:600;color:white;flex:1;min-width:120px;cursor:pointer;}
   .btn-verde{background:var(--verde-claro);}
@@ -76,11 +77,13 @@
 
 <div id="ultimo"></div>
 <div id="estado"></div>
+<div id="diag"></div>
 
 <div class="botones">
   <button class="btn-verde" id="btnEscanear">▶ Iniciar cámara</button>
   <button class="btn-gris" id="btnDetener" style="display:none;">■ Detener</button>
   <button class="btn-gris" id="btnLuz" style="display:none;">🔦 Luz</button>
+  <button class="btn-gris" id="btnModo" style="display:none;">🔄 Otro modo</button>
 </div>
 
 <div class="manual">
@@ -90,7 +93,7 @@
 
 <div class="lista" id="lista"></div>
 
-<div class="pie">versión 4 · lector nativo</div>
+<div class="pie">versión 5</div>
 
 <div class="barra-fija">
   <button class="btn-azul" id="btnExportar">⬇ Exportar a Excel</button>
@@ -112,6 +115,10 @@ let loopId = null;       // setInterval del detector nativo
 let detector = null;     // BarcodeDetector nativo
 let scannerLib = null;   // fallback html5-qrcode
 let luzEncendida = false;
+let modoActual = "nativo";   // "nativo" | "respaldo"
+let intentos = 0;            // frames analizados por el lector nativo
+let ultimoError = "";        // último error de detección
+let resVideo = "";           // resolución del video
 
 const $ = id => document.getElementById(id);
 
@@ -221,71 +228,83 @@ function alDetectar(codigoTexto){
 
 // ---------- INICIAR / DETENER CÁMARA ----------
 
-const FORMATOS = ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","itf","codabar","qr_code"];
+const FORMATOS = ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","code_93","itf","codabar","qr_code","data_matrix"];
+const hayNativo = ("BarcodeDetector" in window);
 
-async function iniciarCamara(){
+function pintarDiag(){
+  let t = "";
+  if(modoActual === "nativo"){
+    t = "lector nativo" + (resVideo ? " · " + resVideo : "") + " · " + intentos + " lecturas";
+    if(ultimoError) t += " · error: " + ultimoError;
+  } else {
+    t = "modo respaldo" + (hayNativo ? "" : " (este navegador no tiene lector nativo)");
+  }
+  $("diag").textContent = t;
+}
+
+async function iniciarCamara(modo){
+  modoActual = modo || (hayNativo ? "nativo" : "respaldo");
+  intentos = 0; ultimoError = ""; resVideo = "";
   $("estado").textContent = "Iniciando cámara...";
   $("btnEscanear").disabled = true;
   $("camara").classList.add("activa"); // el <video> debe estar visible para decodificar
+  pintarDiag();
 
-  // 1) Intento con el lector NATIVO del navegador (mejor en Android)
-  if("BarcodeDetector" in window){
+  if(modoActual === "nativo"){
     try{
-      let formatos = FORMATOS;
-      try{
-        const soportados = await window.BarcodeDetector.getSupportedFormats();
-        formatos = FORMATOS.filter(f => soportados.includes(f));
-      }catch(e){}
-      detector = new window.BarcodeDetector({ formats: formatos.length ? formatos : undefined });
+      detector = new window.BarcodeDetector(); // detecta todos los formatos que soporte el equipo
 
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false
       });
       const video = $("video");
       video.srcObject = stream;
       await video.play();
       track = stream.getVideoTracks()[0];
+      try{ await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }catch(e){}
 
       loopId = setInterval(async () => {
-        if(video.readyState < 2) return;
+        if(video.readyState < 2 || !video.videoWidth) return;
+        if(!resVideo){ resVideo = video.videoWidth + "x" + video.videoHeight; }
+        intentos++;
+        if(intentos % 5 === 0) pintarDiag();
         try{
           const codigos = await detector.detect(video);
           if(codigos && codigos.length){
             alDetectar(codigos[0].rawValue);
           }
-        }catch(e){}
-      }, 180);
+        }catch(e){
+          ultimoError = (e && e.name) || "?";
+          pintarDiag();
+        }
+      }, 150);
 
-      mostrarCamaraActiva("Apuntá al código de barra");
+      mostrarCamaraActiva("Apuntá al código de barra (llená el recuadro con el código)");
       return;
     }catch(err){
       await pararTodo();
-      if(err && (err.name === "NotAllowedError" || err.name === "NotFoundError")){
+      if(err && (err.name === "NotAllowedError" || err.name === "NotFoundError" || err.name === "SecurityError")){
         $("camara").classList.remove("activa");
-        $("estado").textContent = "No se pudo abrir la cámara. Tocá el candado 🔒 al lado de la dirección y permití la Cámara para esta página.";
+        $("diag").textContent = "";
+        $("estado").textContent = "No se pudo abrir la cámara. Tocá el candado 🔒 al lado de la dirección → Permisos → Cámara: Permitir, y recargá.";
         $("btnEscanear").disabled = false;
         return;
       }
-      // si falló por otra razón, sigo al fallback
+      modoActual = "respaldo"; // otro error: paso al respaldo
+      pintarDiag();
     }
   }
 
-  // 2) Fallback: librería html5-qrcode
+  // ---- MODO RESPALDO: librería html5-qrcode ----
   try{
-    const mapa = {
-      ean_13:"EAN_13", ean_8:"EAN_8", upc_a:"UPC_A", upc_e:"UPC_E",
-      code_128:"CODE_128", code_39:"CODE_39", itf:"ITF", codabar:"CODABAR", qr_code:"QR_CODE"
-    };
-    const fmts = FORMATOS.map(f => Html5QrcodeSupportedFormats[mapa[f]]).filter(x => x !== undefined);
     scannerLib = new Html5Qrcode("reader", {
-      formatsToSupport: fmts,
       experimentalFeatures: { useBarCodeDetectorIfSupported: true },
       verbose: false
     });
     await scannerLib.start(
       { facingMode: "environment" },
-      { fps: 15, qrbox: (w,h) => { const l = Math.floor(Math.min(w,h)*0.9); return { width:l, height:Math.floor(l*0.55) }; } },
+      { fps: 20, qrbox: (w,h) => { const an = Math.floor(Math.min(w,h)*0.92); return { width:an, height:Math.floor(an*0.42) }; } },
       alDetectar,
       () => {}
     );
@@ -293,6 +312,7 @@ async function iniciarCamara(){
   }catch(err){
     await pararTodo();
     $("camara").classList.remove("activa");
+    $("diag").textContent = "";
     $("estado").textContent = "No se pudo abrir la cámara. Revisá los permisos de la cámara para esta página.";
     $("btnEscanear").disabled = false;
   }
@@ -304,9 +324,12 @@ function mostrarCamaraActiva(msg){
   $("btnEscanear").style.display = "none";
   $("btnEscanear").disabled = false;
   $("btnDetener").style.display = "block";
+  $("btnModo").style.display = "block";
+  $("btnModo").textContent = modoActual === "nativo" ? "🔄 Probar otro modo" : "🔄 Volver al modo normal";
   if(track && track.getCapabilities && track.getCapabilities().torch){
     $("btnLuz").style.display = "block";
   }
+  pintarDiag();
 }
 
 async function pararTodo(){
@@ -330,10 +353,18 @@ async function detenerCamara(){
   await pararTodo();
   $("camara").classList.remove("activa");
   $("estado").textContent = "";
+  $("diag").textContent = "";
   $("btnEscanear").style.display = "block";
   $("btnEscanear").disabled = false;
   $("btnDetener").style.display = "none";
   $("btnLuz").style.display = "none";
+  $("btnModo").style.display = "none";
+}
+
+async function cambiarModo(){
+  const nuevo = modoActual === "nativo" ? "respaldo" : "nativo";
+  await pararTodo();
+  await iniciarCamara(nuevo);
 }
 
 async function toggleLuz(){
@@ -345,9 +376,10 @@ async function toggleLuz(){
   }catch(e){}
 }
 
-$("btnEscanear").addEventListener("click", iniciarCamara);
+$("btnEscanear").addEventListener("click", () => iniciarCamara());
 $("btnDetener").addEventListener("click", detenerCamara);
 $("btnLuz").addEventListener("click", toggleLuz);
+$("btnModo").addEventListener("click", cambiarModo);
 
 $("btnAgregarManual").addEventListener("click", () => {
   const input = $("inputManual");
