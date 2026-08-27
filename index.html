@@ -22,7 +22,11 @@
   .contador{background:var(--panel);margin:12px;border-radius:14px;padding:14px;display:flex;justify-content:space-around;text-align:center;}
   .contador div span{display:block;font-size:1.6rem;font-weight:700;}
   .contador div small{color:var(--sub);}
-  #reader{width:100%;max-width:480px;margin:0 auto;border-radius:14px;overflow:hidden;}
+  .camara{position:relative;width:100%;max-width:480px;margin:0 auto;border-radius:14px;overflow:hidden;background:#000;}
+  #video{width:100%;display:block;}
+  #reader{width:100%;}
+  .mira{position:absolute;left:8%;right:8%;top:50%;height:32%;transform:translateY(-50%);border:3px solid #66bb6a;border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.25);pointer-events:none;display:none;}
+  .camara.activa .mira{display:block;}
   .botones{display:flex;gap:10px;padding:0 12px;margin:12px 0;flex-wrap:wrap;}
   button{border:none;border-radius:12px;padding:14px 16px;font-size:1rem;font-weight:600;color:white;flex:1;min-width:120px;cursor:pointer;}
   .btn-verde{background:var(--verde-claro);}
@@ -30,6 +34,7 @@
   .btn-rojo{background:var(--rojo);}
   .btn-gris{background:#374151;}
   button:active{filter:brightness(0.85);}
+  button:disabled{opacity:.5;}
   .manual{display:flex;gap:8px;padding:0 12px;margin:12px 0;}
   .manual input{flex:1;padding:12px;border-radius:10px;border:1px solid var(--borde);background:var(--panel);color:var(--texto);font-size:1rem;}
   .lista{padding:0 12px;}
@@ -44,8 +49,10 @@
   .stepper span{min-width:32px;text-align:center;font-weight:700;font-size:1.1rem;}
   .borrar{background:transparent;color:#ef5350;flex:none;padding:8px;font-weight:700;}
   .vacio{text-align:center;color:var(--sub);padding:30px 16px;}
-  #estado{text-align:center;color:var(--sub);font-size:.85rem;margin:4px 0 10px;}
+  #estado{text-align:center;color:var(--sub);font-size:.85rem;margin:8px 12px;min-height:1.2em;}
+  #ultimo{text-align:center;color:#66bb6a;font-size:.95rem;font-weight:700;margin:0 12px 6px;min-height:1.2em;}
   .barra-fija{position:fixed;bottom:0;left:0;right:0;background:var(--bg);padding:10px 12px 14px;border-top:1px solid var(--borde);display:flex;gap:10px;}
+  .pie{text-align:center;color:#4b5563;font-size:.7rem;margin:14px 0 4px;}
 </style>
 </head>
 <body>
@@ -60,12 +67,19 @@
   <div><span id="totalUnidades">0</span><small>unidades totales</small></div>
 </div>
 
-<div id="reader"></div>
+<div class="camara" id="camara">
+  <video id="video" playsinline muted></video>
+  <div id="reader"></div>
+  <div class="mira"></div>
+</div>
+
+<div id="ultimo"></div>
 <div id="estado"></div>
 
 <div class="botones">
   <button class="btn-verde" id="btnEscanear">▶ Iniciar cámara</button>
   <button class="btn-gris" id="btnDetener" style="display:none;">■ Detener</button>
+  <button class="btn-gris" id="btnLuz" style="display:none;">🔦 Luz</button>
 </div>
 
 <div class="manual">
@@ -74,6 +88,8 @@
 </div>
 
 <div class="lista" id="lista"></div>
+
+<div class="pie">versión 3 · lector nativo</div>
 
 <div class="barra-fija">
   <button class="btn-azul" id="btnExportar">⬇ Exportar a Excel</button>
@@ -85,33 +101,24 @@
 <script>
 const CLAVE = "controlStockCodigos_v1";
 let datos = JSON.parse(localStorage.getItem(CLAVE) || "{}");
-let scanner = null;
 let ultimoCodigo = null;
 let ultimoTiempo = 0;
 
-function guardar(){
-  localStorage.setItem(CLAVE, JSON.stringify(datos));
-}
+// ---- estado de la cámara ----
+let stream = null;       // MediaStream activo
+let track = null;        // pista de video (para la linterna)
+let loopId = null;       // setInterval del detector nativo
+let detector = null;     // BarcodeDetector nativo
+let scannerLib = null;   // fallback html5-qrcode
+let luzEncendida = false;
+
+const $ = id => document.getElementById(id);
+
+function guardar(){ localStorage.setItem(CLAVE, JSON.stringify(datos)); }
 
 function formatoFecha(iso){
   const d = new Date(iso);
   return d.toLocaleDateString("es-AR") + " " + d.toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit"});
-}
-
-function agregarCodigo(codigo){
-  codigo = codigo.trim();
-  if(!codigo) return;
-  const ahora = new Date().toISOString();
-  if(datos[codigo]){
-    datos[codigo].cantidad += 1;
-    datos[codigo].ultima = ahora;
-  } else {
-    datos[codigo] = { cantidad: 1, descripcion: "", primera: ahora, ultima: ahora };
-  }
-  guardar();
-  renderLista();
-  if(navigator.vibrate) navigator.vibrate(80);
-  beep();
 }
 
 function beep(){
@@ -127,12 +134,29 @@ function beep(){
   }catch(e){}
 }
 
+function agregarCodigo(codigo, desdeCamara){
+  codigo = (codigo || "").trim();
+  if(!codigo) return;
+  const ahora = new Date().toISOString();
+  if(datos[codigo]){
+    datos[codigo].cantidad += 1;
+    datos[codigo].ultima = ahora;
+  } else {
+    datos[codigo] = { cantidad: 1, descripcion: "", primera: ahora, ultima: ahora };
+  }
+  guardar();
+  renderLista();
+  if(navigator.vibrate) navigator.vibrate(80);
+  beep();
+  if(desdeCamara){
+    $("ultimo").textContent = "✓ " + codigo + "  (x" + datos[codigo].cantidad + ")";
+  }
+}
+
 function cambiarCantidad(codigo, delta){
   if(!datos[codigo]) return;
   datos[codigo].cantidad += delta;
-  if(datos[codigo].cantidad <= 0){
-    delete datos[codigo];
-  }
+  if(datos[codigo].cantidad <= 0) delete datos[codigo];
   guardar();
   renderLista();
 }
@@ -150,13 +174,13 @@ function borrarCodigo(codigo){
 }
 
 function renderLista(){
-  const lista = document.getElementById("lista");
+  const lista = $("lista");
   const claves = Object.keys(datos).sort((a,b) => new Date(datos[b].ultima) - new Date(datos[a].ultima));
 
   let totalUnidades = 0;
   claves.forEach(c => totalUnidades += datos[c].cantidad);
-  document.getElementById("totalCodigos").textContent = claves.length;
-  document.getElementById("totalUnidades").textContent = totalUnidades;
+  $("totalCodigos").textContent = claves.length;
+  $("totalUnidades").textContent = totalUnidades;
 
   if(claves.length === 0){
     lista.innerHTML = '<div class="vacio">Todavía no escaneaste ningún código</div>';
@@ -191,64 +215,149 @@ function alDetectar(codigoTexto){
   if(codigoTexto === ultimoCodigo && (ahora - ultimoTiempo) < 1800) return;
   ultimoCodigo = codigoTexto;
   ultimoTiempo = ahora;
-  agregarCodigo(codigoTexto);
+  agregarCodigo(codigoTexto, true);
 }
 
-document.getElementById("btnEscanear").addEventListener("click", () => {
-  const formatos = [
-    Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
-    Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
-    Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
-    Html5QrcodeSupportedFormats.ITF, Html5QrcodeSupportedFormats.QR_CODE
-  ];
-  scanner = new Html5Qrcode("reader", {
-    formatsToSupport: formatos,
-    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-    verbose: false
-  });
-  document.getElementById("estado").textContent = "Iniciando cámara...";
-  const caja = (ancho, alto) => {
-    const lado = Math.floor(Math.min(ancho, alto) * 0.92);
-    return { width: lado, height: Math.floor(lado * 0.6) };
-  };
-  scanner.start(
-    { facingMode: "environment" },
-    { fps: 15, qrbox: caja, aspectRatio: 1.0 },
-    alDetectar,
-    () => {}
-  ).then(() => {
-    document.getElementById("estado").textContent = "Apuntá al código de barra";
-    document.getElementById("btnEscanear").style.display = "none";
-    document.getElementById("btnDetener").style.display = "block";
-  }).catch(err => {
-    document.getElementById("estado").textContent = "No se pudo abrir la cámara. Revisá los permisos.";
-  });
-});
+// ---------- INICIAR / DETENER CÁMARA ----------
 
-document.getElementById("btnDetener").addEventListener("click", () => {
-  if(scanner){
-    scanner.stop().then(() => {
-      scanner.clear();
-      document.getElementById("estado").textContent = "";
-      document.getElementById("btnEscanear").style.display = "block";
-      document.getElementById("btnDetener").style.display = "none";
-    });
+const FORMATOS = ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","itf","codabar","qr_code"];
+
+async function iniciarCamara(){
+  $("estado").textContent = "Iniciando cámara...";
+  $("btnEscanear").disabled = true;
+
+  // 1) Intento con el lector NATIVO del navegador (mejor en Android)
+  if("BarcodeDetector" in window){
+    try{
+      let formatos = FORMATOS;
+      try{
+        const soportados = await window.BarcodeDetector.getSupportedFormats();
+        formatos = FORMATOS.filter(f => soportados.includes(f));
+      }catch(e){}
+      detector = new window.BarcodeDetector({ formats: formatos.length ? formatos : undefined });
+
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      const video = $("video");
+      video.srcObject = stream;
+      await video.play();
+      track = stream.getVideoTracks()[0];
+
+      loopId = setInterval(async () => {
+        if(video.readyState < 2) return;
+        try{
+          const codigos = await detector.detect(video);
+          if(codigos && codigos.length){
+            alDetectar(codigos[0].rawValue);
+          }
+        }catch(e){}
+      }, 180);
+
+      mostrarCamaraActiva("Apuntá al código de barra");
+      return;
+    }catch(err){
+      await pararTodo();
+      if(err && (err.name === "NotAllowedError" || err.name === "NotFoundError")){
+        $("estado").textContent = "No se pudo abrir la cámara. Revisá los permisos de la cámara para esta página.";
+        $("btnEscanear").disabled = false;
+        return;
+      }
+      // si falló por otra razón, sigo al fallback
+    }
   }
-});
 
-document.getElementById("btnAgregarManual").addEventListener("click", () => {
-  const input = document.getElementById("inputManual");
+  // 2) Fallback: librería html5-qrcode
+  try{
+    const mapa = {
+      ean_13:"EAN_13", ean_8:"EAN_8", upc_a:"UPC_A", upc_e:"UPC_E",
+      code_128:"CODE_128", code_39:"CODE_39", itf:"ITF", codabar:"CODABAR", qr_code:"QR_CODE"
+    };
+    const fmts = FORMATOS.map(f => Html5QrcodeSupportedFormats[mapa[f]]).filter(x => x !== undefined);
+    scannerLib = new Html5Qrcode("reader", {
+      formatsToSupport: fmts,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      verbose: false
+    });
+    await scannerLib.start(
+      { facingMode: "environment" },
+      { fps: 15, qrbox: (w,h) => { const l = Math.floor(Math.min(w,h)*0.9); return { width:l, height:Math.floor(l*0.55) }; } },
+      alDetectar,
+      () => {}
+    );
+    mostrarCamaraActiva("Apuntá al código de barra");
+  }catch(err){
+    await pararTodo();
+    $("estado").textContent = "No se pudo abrir la cámara. Revisá los permisos.";
+    $("btnEscanear").disabled = false;
+  }
+}
+
+function mostrarCamaraActiva(msg){
+  $("camara").classList.add("activa");
+  $("estado").textContent = msg;
+  $("btnEscanear").style.display = "none";
+  $("btnEscanear").disabled = false;
+  $("btnDetener").style.display = "block";
+  if(track && track.getCapabilities && track.getCapabilities().torch){
+    $("btnLuz").style.display = "block";
+  }
+}
+
+async function pararTodo(){
+  if(loopId){ clearInterval(loopId); loopId = null; }
+  detector = null;
+  if(scannerLib){
+    try{ await scannerLib.stop(); scannerLib.clear(); }catch(e){}
+    scannerLib = null;
+  }
+  if(stream){
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  track = null;
+  luzEncendida = false;
+  const v = $("video");
+  if(v) v.srcObject = null;
+}
+
+async function detenerCamara(){
+  await pararTodo();
+  $("camara").classList.remove("activa");
+  $("estado").textContent = "";
+  $("btnEscanear").style.display = "block";
+  $("btnEscanear").disabled = false;
+  $("btnDetener").style.display = "none";
+  $("btnLuz").style.display = "none";
+}
+
+async function toggleLuz(){
+  if(!track) return;
+  try{
+    luzEncendida = !luzEncendida;
+    await track.applyConstraints({ advanced: [{ torch: luzEncendida }] });
+    $("btnLuz").textContent = luzEncendida ? "🔦 Apagar" : "🔦 Luz";
+  }catch(e){}
+}
+
+$("btnEscanear").addEventListener("click", iniciarCamara);
+$("btnDetener").addEventListener("click", detenerCamara);
+$("btnLuz").addEventListener("click", toggleLuz);
+
+$("btnAgregarManual").addEventListener("click", () => {
+  const input = $("inputManual");
   agregarCodigo(input.value);
   input.value = "";
 });
-document.getElementById("inputManual").addEventListener("keydown", (e) => {
+$("inputManual").addEventListener("keydown", (e) => {
   if(e.key === "Enter"){
     agregarCodigo(e.target.value);
     e.target.value = "";
   }
 });
 
-document.getElementById("btnVaciar").addEventListener("click", () => {
+$("btnVaciar").addEventListener("click", () => {
   if(Object.keys(datos).length === 0) return;
   if(confirm("¿Borrar todos los códigos escaneados? No se puede deshacer.")){
     datos = {};
@@ -257,7 +366,7 @@ document.getElementById("btnVaciar").addEventListener("click", () => {
   }
 });
 
-document.getElementById("btnExportar").addEventListener("click", () => {
+$("btnExportar").addEventListener("click", () => {
   const claves = Object.keys(datos);
   if(claves.length === 0){
     alert("Todavía no hay códigos para exportar.");
