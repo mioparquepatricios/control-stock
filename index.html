@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Control de Stock</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1b5e20">
+<link rel="manifest" href="data:application/manifest+json,{%22name%22:%22Control%20de%20Stock%22,%22short_name%22:%22Stock%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%23111827%22,%22theme_color%22:%22%231b5e20%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%253Csvg xmlns=%2527http://www.w3.org/2000/svg%2527 viewBox=%25270 0 100 100%2527%253E%253Crect width=%2527100%2527 height=%2527100%2527 rx=%252718%2527 fill=%2527%25231b5e20%2527/%253E%253Crect x=%252718%2527 y=%252728%2527 width=%25278%2527 height=%252744%2527 fill=%2527white%2527/%253E%253Crect x=%252730%2527 y=%252728%2527 width=%25274%2527 height=%252744%2527 fill=%2527white%2527/%253E%253Crect x=%252738%2527 y=%252728%2527 width=%252710%2527 height=%252744%2527 fill=%2527white%2527/%253E%253Crect x=%252752%2527 y=%252728%2527 width=%25274%2527 height=%252744%2527 fill=%2527white%2527/%253E%253Crect x=%252760%2527 y=%252728%2527 width=%25278%2527 height=%252744%2527 fill=%2527white%2527/%253E%253Crect x=%252772%2527 y=%252728%2527 width=%25276%2527 height=%252744%2527 fill=%2527white%2527/%253E%253C/svg%253E%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]}">
+<style>
+  :root{
+    --verde:#1b5e20; --verde-claro:#2e7d32; --azul:#0d47a1; --rojo:#b71c1c;
+    --bg:#111827; --panel:#1f2937; --texto:#f3f4f6; --sub:#9ca3af; --borde:#374151;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--texto);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;padding-bottom:90px;}
+  header{padding:16px 16px 8px;text-align:center;}
+  header h1{margin:0;font-size:1.3rem;}
+  header p{margin:4px 0 0;color:var(--sub);font-size:.85rem;}
+  .contador{background:var(--panel);margin:12px;border-radius:14px;padding:14px;display:flex;justify-content:space-around;text-align:center;}
+  .contador div span{display:block;font-size:1.6rem;font-weight:700;}
+  .contador div small{color:var(--sub);}
+  #reader{width:100%;max-width:480px;margin:0 auto;border-radius:14px;overflow:hidden;}
+  .botones{display:flex;gap:10px;padding:0 12px;margin:12px 0;flex-wrap:wrap;}
+  button{border:none;border-radius:12px;padding:14px 16px;font-size:1rem;font-weight:600;color:white;flex:1;min-width:120px;cursor:pointer;}
+  .btn-verde{background:var(--verde-claro);}
+  .btn-azul{background:var(--azul);}
+  .btn-rojo{background:var(--rojo);}
+  .btn-gris{background:#374151;}
+  button:active{filter:brightness(0.85);}
+  .manual{display:flex;gap:8px;padding:0 12px;margin:12px 0;}
+  .manual input{flex:1;padding:12px;border-radius:10px;border:1px solid var(--borde);background:var(--panel);color:var(--texto);font-size:1rem;}
+  .lista{padding:0 12px;}
+  .item{background:var(--panel);border-radius:12px;padding:12px;margin-bottom:8px;}
+  .item-top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .item-codigo{font-weight:700;font-size:1.05rem;word-break:break-all;}
+  .item-fecha{color:var(--sub);font-size:.75rem;margin-top:2px;}
+  .item-desc{width:100%;margin-top:8px;padding:8px;border-radius:8px;border:1px solid var(--borde);background:#111827;color:var(--texto);font-size:.9rem;}
+  .item-acciones{display:flex;align-items:center;gap:8px;margin-top:8px;}
+  .stepper{display:flex;align-items:center;gap:6px;}
+  .stepper button{flex:none;width:36px;height:36px;padding:0;font-size:1.2rem;border-radius:8px;background:#374151;}
+  .stepper span{min-width:32px;text-align:center;font-weight:700;font-size:1.1rem;}
+  .borrar{background:transparent;color:#ef5350;flex:none;padding:8px;font-weight:700;}
+  .vacio{text-align:center;color:var(--sub);padding:30px 16px;}
+  #estado{text-align:center;color:var(--sub);font-size:.85rem;margin:4px 0 10px;}
+  .barra-fija{position:fixed;bottom:0;left:0;right:0;background:var(--bg);padding:10px 12px 14px;border-top:1px solid var(--borde);display:flex;gap:10px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📦 Control de Stock</h1>
+  <p>Escaneá los códigos de barra y después exportá todo a Excel</p>
+</header>
+
+<div class="contador">
+  <div><span id="totalCodigos">0</span><small>códigos distintos</small></div>
+  <div><span id="totalUnidades">0</span><small>unidades totales</small></div>
+</div>
+
+<div id="reader"></div>
+<div id="estado"></div>
+
+<div class="botones">
+  <button class="btn-verde" id="btnEscanear">▶ Iniciar cámara</button>
+  <button class="btn-gris" id="btnDetener" style="display:none;">■ Detener</button>
+</div>
+
+<div class="manual">
+  <input type="text" id="inputManual" placeholder="O escribí el código a mano" inputmode="numeric">
+  <button class="btn-azul" id="btnAgregarManual" style="flex:none;">Agregar</button>
+</div>
+
+<div class="lista" id="lista"></div>
+
+<div class="barra-fija">
+  <button class="btn-azul" id="btnExportar">⬇ Exportar a Excel</button>
+  <button class="btn-rojo" id="btnVaciar">🗑 Vaciar todo</button>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script>
+const CLAVE = "controlStockCodigos_v1";
+let datos = JSON.parse(localStorage.getItem(CLAVE) || "{}");
+let scanner = null;
+let ultimoCodigo = null;
+let ultimoTiempo = 0;
+
+function guardar(){
+  localStorage.setItem(CLAVE, JSON.stringify(datos));
+}
+
+function formatoFecha(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString("es-AR") + " " + d.toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit"});
+}
+
+function agregarCodigo(codigo){
+  codigo = codigo.trim();
+  if(!codigo) return;
+  const ahora = new Date().toISOString();
+  if(datos[codigo]){
+    datos[codigo].cantidad += 1;
+    datos[codigo].ultima = ahora;
+  } else {
+    datos[codigo] = { cantidad: 1, descripcion: "", primera: ahora, ultima: ahora };
+  }
+  guardar();
+  renderLista();
+  if(navigator.vibrate) navigator.vibrate(80);
+  beep();
+}
+
+function beep(){
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.1);
+  }catch(e){}
+}
+
+function cambiarCantidad(codigo, delta){
+  if(!datos[codigo]) return;
+  datos[codigo].cantidad += delta;
+  if(datos[codigo].cantidad <= 0){
+    delete datos[codigo];
+  }
+  guardar();
+  renderLista();
+}
+
+function cambiarDescripcion(codigo, valor){
+  if(!datos[codigo]) return;
+  datos[codigo].descripcion = valor;
+  guardar();
+}
+
+function borrarCodigo(codigo){
+  delete datos[codigo];
+  guardar();
+  renderLista();
+}
+
+function renderLista(){
+  const lista = document.getElementById("lista");
+  const claves = Object.keys(datos).sort((a,b) => new Date(datos[b].ultima) - new Date(datos[a].ultima));
+
+  let totalUnidades = 0;
+  claves.forEach(c => totalUnidades += datos[c].cantidad);
+  document.getElementById("totalCodigos").textContent = claves.length;
+  document.getElementById("totalUnidades").textContent = totalUnidades;
+
+  if(claves.length === 0){
+    lista.innerHTML = '<div class="vacio">Todavía no escaneaste ningún código</div>';
+    return;
+  }
+
+  lista.innerHTML = claves.map(codigo => {
+    const item = datos[codigo];
+    return `
+    <div class="item">
+      <div class="item-top">
+        <div>
+          <div class="item-codigo">${codigo}</div>
+          <div class="item-fecha">Última lectura: ${formatoFecha(item.ultima)}</div>
+        </div>
+        <button class="borrar" onclick="borrarCodigo('${codigo}')">✕</button>
+      </div>
+      <input class="item-desc" placeholder="Descripción (opcional)" value="${item.descripcion.replace(/"/g,'&quot;')}" onchange="cambiarDescripcion('${codigo}', this.value)">
+      <div class="item-acciones">
+        <div class="stepper">
+          <button onclick="cambiarCantidad('${codigo}', -1)">−</button>
+          <span>${item.cantidad}</span>
+          <button onclick="cambiarCantidad('${codigo}', 1)">+</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function alDetectar(codigoTexto){
+  const ahora = Date.now();
+  if(codigoTexto === ultimoCodigo && (ahora - ultimoTiempo) < 1800) return;
+  ultimoCodigo = codigoTexto;
+  ultimoTiempo = ahora;
+  agregarCodigo(codigoTexto);
+}
+
+document.getElementById("btnEscanear").addEventListener("click", () => {
+  const formatos = [
+    Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.ITF, Html5QrcodeSupportedFormats.QR_CODE
+  ];
+  scanner = new Html5Qrcode("reader", { formatsToSupport: formatos, verbose: false });
+  document.getElementById("estado").textContent = "Iniciando cámara...";
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 250, height: 150 } },
+    alDetectar,
+    () => {}
+  ).then(() => {
+    document.getElementById("estado").textContent = "Apuntá al código de barra";
+    document.getElementById("btnEscanear").style.display = "none";
+    document.getElementById("btnDetener").style.display = "block";
+  }).catch(err => {
+    document.getElementById("estado").textContent = "No se pudo abrir la cámara. Revisá los permisos.";
+  });
+});
+
+document.getElementById("btnDetener").addEventListener("click", () => {
+  if(scanner){
+    scanner.stop().then(() => {
+      scanner.clear();
+      document.getElementById("estado").textContent = "";
+      document.getElementById("btnEscanear").style.display = "block";
+      document.getElementById("btnDetener").style.display = "none";
+    });
+  }
+});
+
+document.getElementById("btnAgregarManual").addEventListener("click", () => {
+  const input = document.getElementById("inputManual");
+  agregarCodigo(input.value);
+  input.value = "";
+});
+document.getElementById("inputManual").addEventListener("keydown", (e) => {
+  if(e.key === "Enter"){
+    agregarCodigo(e.target.value);
+    e.target.value = "";
+  }
+});
+
+document.getElementById("btnVaciar").addEventListener("click", () => {
+  if(Object.keys(datos).length === 0) return;
+  if(confirm("¿Borrar todos los códigos escaneados? No se puede deshacer.")){
+    datos = {};
+    guardar();
+    renderLista();
+  }
+});
+
+document.getElementById("btnExportar").addEventListener("click", () => {
+  const claves = Object.keys(datos);
+  if(claves.length === 0){
+    alert("Todavía no hay códigos para exportar.");
+    return;
+  }
+  const filas = claves.map(codigo => ({
+    "Código": codigo,
+    "Descripción": datos[codigo].descripcion || "",
+    "Cantidad": datos[codigo].cantidad,
+    "Primera lectura": formatoFecha(datos[codigo].primera),
+    "Última lectura": formatoFecha(datos[codigo].ultima)
+  }));
+  const hoja = XLSX.utils.json_to_sheet(filas);
+  hoja["!cols"] = [{wch:18},{wch:28},{wch:10},{wch:18},{wch:18}];
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, "Stock");
+  const fecha = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(libro, `control_stock_${fecha}.xlsx`);
+});
+
+renderLista();
+</script>
+</body>
+</html>
