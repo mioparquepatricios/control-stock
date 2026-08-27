@@ -22,7 +22,8 @@
   .contador{background:var(--panel);margin:12px;border-radius:14px;padding:14px;display:flex;justify-content:space-around;text-align:center;}
   .contador div span{display:block;font-size:1.6rem;font-weight:700;}
   .contador div small{color:var(--sub);}
-  .camara{position:relative;width:100%;max-width:480px;margin:0 auto;border-radius:14px;overflow:hidden;background:#000;}
+  .camara{position:relative;width:100%;max-width:480px;margin:0 auto;border-radius:14px;overflow:hidden;background:#000;display:none;}
+  .camara.activa{display:block;}
   #video{width:100%;display:block;}
   #reader{width:100%;}
   .mira{position:absolute;left:8%;right:8%;top:50%;height:32%;transform:translateY(-50%);border:3px solid #66bb6a;border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.25);pointer-events:none;display:none;}
@@ -89,7 +90,7 @@
 
 <div class="lista" id="lista"></div>
 
-<div class="pie">versión 3 · lector nativo</div>
+<div class="pie">versión 4 · lector nativo</div>
 
 <div class="barra-fija">
   <button class="btn-azul" id="btnExportar">⬇ Exportar a Excel</button>
@@ -225,6 +226,7 @@ const FORMATOS = ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","itf","c
 async function iniciarCamara(){
   $("estado").textContent = "Iniciando cámara...";
   $("btnEscanear").disabled = true;
+  $("camara").classList.add("activa"); // el <video> debe estar visible para decodificar
 
   // 1) Intento con el lector NATIVO del navegador (mejor en Android)
   if("BarcodeDetector" in window){
@@ -260,7 +262,8 @@ async function iniciarCamara(){
     }catch(err){
       await pararTodo();
       if(err && (err.name === "NotAllowedError" || err.name === "NotFoundError")){
-        $("estado").textContent = "No se pudo abrir la cámara. Revisá los permisos de la cámara para esta página.";
+        $("camara").classList.remove("activa");
+        $("estado").textContent = "No se pudo abrir la cámara. Tocá el candado 🔒 al lado de la dirección y permití la Cámara para esta página.";
         $("btnEscanear").disabled = false;
         return;
       }
@@ -289,7 +292,8 @@ async function iniciarCamara(){
     mostrarCamaraActiva("Apuntá al código de barra");
   }catch(err){
     await pararTodo();
-    $("estado").textContent = "No se pudo abrir la cámara. Revisá los permisos.";
+    $("camara").classList.remove("activa");
+    $("estado").textContent = "No se pudo abrir la cámara. Revisá los permisos de la cámara para esta página.";
     $("btnEscanear").disabled = false;
   }
 }
