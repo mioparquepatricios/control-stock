@@ -201,11 +201,19 @@ document.getElementById("btnEscanear").addEventListener("click", () => {
     Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
     Html5QrcodeSupportedFormats.ITF, Html5QrcodeSupportedFormats.QR_CODE
   ];
-  scanner = new Html5Qrcode("reader", { formatsToSupport: formatos, verbose: false });
+  scanner = new Html5Qrcode("reader", {
+    formatsToSupport: formatos,
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    verbose: false
+  });
   document.getElementById("estado").textContent = "Iniciando cámara...";
+  const caja = (ancho, alto) => {
+    const lado = Math.floor(Math.min(ancho, alto) * 0.92);
+    return { width: lado, height: Math.floor(lado * 0.6) };
+  };
   scanner.start(
     { facingMode: "environment" },
-    { fps: 10, qrbox: { width: 250, height: 150 } },
+    { fps: 15, qrbox: caja, aspectRatio: 1.0 },
     alDetectar,
     () => {}
   ).then(() => {
