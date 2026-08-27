@@ -101,7 +101,7 @@
 
 <div class="lista" id="lista"></div>
 
-<div class="pie">versión 7 · con lista de artículos</div>
+<div class="pie">versión 8 · recuerda la cámara</div>
 
 <div class="barra-fija">
   <button class="btn-azul" id="btnExportar">⬇ Exportar a Excel</button>
@@ -131,6 +131,9 @@ let ultimoError = "";        // último error de detección
 let resVideo = "";           // resolución del video
 let camaras = [];            // cámaras de video disponibles
 let camIdx = 0;              // cuál se está usando
+let camPref = "";            // deviceId de la cámara que funcionó antes
+let cicladoManual = false;   // el usuario está probando cámaras con el botón
+try{ camPref = localStorage.getItem("camStockPref") || ""; }catch(e){}
 
 const $ = id => document.getElementById(id);
 
@@ -318,9 +321,10 @@ function pintarDiag(){
     t = "lector nativo" + (resVideo ? " · " + resVideo : "") + " · " + intentos + " lecturas";
     if(camaras.length > 1) t += " · cám " + (camIdx + 1) + "/" + camaras.length;
     if(detecciones) t += " · " + detecciones + " detectadas";
+    if(camPref && camaras[camIdx] && camaras[camIdx].deviceId === camPref) t += " · ✓ recordada";
     if(ultimoError) t += " · error: " + ultimoError;
-    if(intentos > 80 && detecciones === 0){
-      $("estado").textContent = "No engancha el código. Probá 📷 Otra cámara, prendé la 🔦 Luz, o acercá/alejá despacio.";
+    if(intentos > 60 && detecciones === 0 && camaras.length > 1){
+      $("estado").textContent = "Esta cámara no engancha. Tocá 📷 Otra cámara y volvé a probar.";
     }
   } else {
     t = "modo respaldo" + (hayNativo ? "" : " (este navegador no tiene lector nativo)");
@@ -343,25 +347,49 @@ async function enumerarCamaras(){
     const vids = devs.filter(d => d.kind === "videoinput");
     vids.sort((a,b) => puntajeCam(b) - puntajeCam(a));
     camaras = vids;
+    // si hay una cámara guardada de antes, arrancar por esa
+    if(camPref && !cicladoManual){
+      const k = camaras.findIndex(c => c.deviceId === camPref);
+      if(k >= 0) camIdx = k;
+    }
+    if(camIdx > camaras.length - 1) camIdx = 0;
   }catch(e){ camaras = []; }
 }
 
-async function arrancarNativo(){
-  detector = new window.BarcodeDetector();
+async function abrirStream(deviceId){
   const res = { width: { ideal: 1920 }, height: { ideal: 1080 } };
-  let cons;
-  if(camaras.length && camaras[camIdx] && camaras[camIdx].deviceId){
-    cons = { video: Object.assign({ deviceId: { exact: camaras[camIdx].deviceId } }, res), audio: false };
-  } else {
-    cons = { video: Object.assign({ facingMode: { ideal: "environment" } }, res), audio: false };
-  }
-  stream = await navigator.mediaDevices.getUserMedia(cons);
-  const video = $("video");
+  const v = deviceId ? Object.assign({ deviceId: { exact: deviceId } }, res)
+                     : Object.assign({ facingMode: { ideal: "environment" } }, res);
+  return navigator.mediaDevices.getUserMedia({ video: v, audio: false });
+}
+
+async function prender(video, deviceId){
+  stream = await abrirStream(deviceId);
   video.srcObject = stream;
   await video.play();
   track = stream.getVideoTracks()[0];
   try{ await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }catch(e){}
-  if(camaras.length === 0) await enumerarCamaras(); // recién ahora hay etiquetas (con permiso dado)
+}
+
+async function arrancarNativo(){
+  detector = new window.BarcodeDetector();
+  const video = $("video");
+
+  // si ya hay permiso, listamos primero para poder elegir la cámara guardada
+  await enumerarCamaras();
+  let deviceId = (camaras.length && camaras[camIdx] && camaras[camIdx].deviceId) ? camaras[camIdx].deviceId : null;
+  await prender(video, deviceId);
+
+  if(camaras.length === 0 || !deviceId){
+    // recién ahora hay etiquetas / deviceIds
+    await enumerarCamaras();
+    const idPref = (camaras.length && camaras[camIdx] && camaras[camIdx].deviceId) ? camaras[camIdx].deviceId : null;
+    const idActual = (track && track.getSettings) ? track.getSettings().deviceId : null;
+    if(idPref && idPref !== idActual){
+      stream.getTracks().forEach(t => t.stop());
+      await prender(video, idPref);
+    }
+  }
 
   loopId = setInterval(async () => {
     if(video.readyState < 2 || !video.videoWidth) return;
@@ -382,6 +410,12 @@ async function arrancarNativo(){
       }
       if(codigos && codigos.length){
         detecciones++;
+        // recordar esta cámara: es la que funciona
+        const id = camaras[camIdx] && camaras[camIdx].deviceId;
+        if(id && id !== camPref){
+          camPref = id;
+          try{ localStorage.setItem("camStockPref", id); }catch(e){}
+        }
         alDetectar(codigos[0].rawValue);
       }
     }catch(e){
@@ -494,8 +528,10 @@ async function cambiarModo(){
 async function cambiarCamara(){
   if(camaras.length < 2) return;
   camIdx = (camIdx + 1) % camaras.length;
+  cicladoManual = true;
   await pararTodo();
   await iniciarCamara("nativo");
+  cicladoManual = false;
 }
 
 async function toggleLuz(){
