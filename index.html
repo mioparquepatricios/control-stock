@@ -83,6 +83,7 @@
   <button class="btn-verde" id="btnEscanear">▶ Iniciar cámara</button>
   <button class="btn-gris" id="btnDetener" style="display:none;">■ Detener</button>
   <button class="btn-gris" id="btnLuz" style="display:none;">🔦 Luz</button>
+  <button class="btn-gris" id="btnCam" style="display:none;">📷 Otra cámara</button>
   <button class="btn-gris" id="btnModo" style="display:none;">🔄 Otro modo</button>
 </div>
 
@@ -93,7 +94,7 @@
 
 <div class="lista" id="lista"></div>
 
-<div class="pie">versión 5</div>
+<div class="pie">versión 6</div>
 
 <div class="barra-fija">
   <button class="btn-azul" id="btnExportar">⬇ Exportar a Excel</button>
@@ -117,8 +118,11 @@ let scannerLib = null;   // fallback html5-qrcode
 let luzEncendida = false;
 let modoActual = "nativo";   // "nativo" | "respaldo"
 let intentos = 0;            // frames analizados por el lector nativo
+let detecciones = 0;         // frames en que encontró un código
 let ultimoError = "";        // último error de detección
 let resVideo = "";           // resolución del video
+let camaras = [];            // cámaras de video disponibles
+let camIdx = 0;              // cuál se está usando
 
 const $ = id => document.getElementById(id);
 
@@ -230,21 +234,91 @@ function alDetectar(codigoTexto){
 
 const FORMATOS = ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","code_93","itf","codabar","qr_code","data_matrix"];
 const hayNativo = ("BarcodeDetector" in window);
+const _cv = document.createElement("canvas");
+const _ctx = _cv.getContext("2d", { willReadFrequently: true });
 
 function pintarDiag(){
   let t = "";
   if(modoActual === "nativo"){
     t = "lector nativo" + (resVideo ? " · " + resVideo : "") + " · " + intentos + " lecturas";
+    if(camaras.length > 1) t += " · cám " + (camIdx + 1) + "/" + camaras.length;
+    if(detecciones) t += " · " + detecciones + " detectadas";
     if(ultimoError) t += " · error: " + ultimoError;
+    if(intentos > 80 && detecciones === 0){
+      $("estado").textContent = "No engancha el código. Probá 📷 Otra cámara, prendé la 🔦 Luz, o acercá/alejá despacio.";
+    }
   } else {
     t = "modo respaldo" + (hayNativo ? "" : " (este navegador no tiene lector nativo)");
   }
   $("diag").textContent = t;
 }
 
+function puntajeCam(d){
+  const l = (d.label || "").toLowerCase();
+  let p = 0;
+  if(/back|tras|rear|environment|posterior/.test(l)) p += 5;
+  if(/wide|ang|0\.5|ultra/.test(l)) p -= 4;
+  if(/tele|zoom|depth|profund|mono/.test(l)) p -= 3;
+  return p;
+}
+
+async function enumerarCamaras(){
+  try{
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const vids = devs.filter(d => d.kind === "videoinput");
+    vids.sort((a,b) => puntajeCam(b) - puntajeCam(a));
+    camaras = vids;
+  }catch(e){ camaras = []; }
+}
+
+async function arrancarNativo(){
+  detector = new window.BarcodeDetector();
+  const res = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+  let cons;
+  if(camaras.length && camaras[camIdx] && camaras[camIdx].deviceId){
+    cons = { video: Object.assign({ deviceId: { exact: camaras[camIdx].deviceId } }, res), audio: false };
+  } else {
+    cons = { video: Object.assign({ facingMode: { ideal: "environment" } }, res), audio: false };
+  }
+  stream = await navigator.mediaDevices.getUserMedia(cons);
+  const video = $("video");
+  video.srcObject = stream;
+  await video.play();
+  track = stream.getVideoTracks()[0];
+  try{ await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }catch(e){}
+  if(camaras.length === 0) await enumerarCamaras(); // recién ahora hay etiquetas (con permiso dado)
+
+  loopId = setInterval(async () => {
+    if(video.readyState < 2 || !video.videoWidth) return;
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if(!resVideo) resVideo = vw + "x" + vh;
+    intentos++;
+    if(intentos % 5 === 0) pintarDiag();
+    try{
+      // franja central ampliada (donde está el recuadro verde)
+      const bandH = Math.max(2, Math.round(vh * 0.55));
+      const y0 = Math.round((vh - bandH) / 2);
+      const esc = vw < 1000 ? 2 : 1;
+      _cv.width = vw * esc; _cv.height = bandH * esc;
+      _ctx.drawImage(video, 0, y0, vw, bandH, 0, 0, _cv.width, _cv.height);
+      let codigos = await detector.detect(_cv);
+      if((!codigos || !codigos.length) && intentos % 4 === 0){
+        codigos = await detector.detect(video); // de vez en cuando, el cuadro completo
+      }
+      if(codigos && codigos.length){
+        detecciones++;
+        alDetectar(codigos[0].rawValue);
+      }
+    }catch(e){
+      ultimoError = (e && e.name) || "?";
+      pintarDiag();
+    }
+  }, 130);
+}
+
 async function iniciarCamara(modo){
   modoActual = modo || (hayNativo ? "nativo" : "respaldo");
-  intentos = 0; ultimoError = ""; resVideo = "";
+  intentos = 0; detecciones = 0; ultimoError = ""; resVideo = "";
   $("estado").textContent = "Iniciando cámara...";
   $("btnEscanear").disabled = true;
   $("camara").classList.add("activa"); // el <video> debe estar visible para decodificar
@@ -252,35 +326,8 @@ async function iniciarCamara(modo){
 
   if(modoActual === "nativo"){
     try{
-      detector = new window.BarcodeDetector(); // detecta todos los formatos que soporte el equipo
-
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false
-      });
-      const video = $("video");
-      video.srcObject = stream;
-      await video.play();
-      track = stream.getVideoTracks()[0];
-      try{ await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }catch(e){}
-
-      loopId = setInterval(async () => {
-        if(video.readyState < 2 || !video.videoWidth) return;
-        if(!resVideo){ resVideo = video.videoWidth + "x" + video.videoHeight; }
-        intentos++;
-        if(intentos % 5 === 0) pintarDiag();
-        try{
-          const codigos = await detector.detect(video);
-          if(codigos && codigos.length){
-            alDetectar(codigos[0].rawValue);
-          }
-        }catch(e){
-          ultimoError = (e && e.name) || "?";
-          pintarDiag();
-        }
-      }, 150);
-
-      mostrarCamaraActiva("Apuntá al código de barra (llená el recuadro con el código)");
+      await arrancarNativo();
+      mostrarCamaraActiva("Apuntá al código de barra");
       return;
     }catch(err){
       await pararTodo();
@@ -326,6 +373,7 @@ function mostrarCamaraActiva(msg){
   $("btnDetener").style.display = "block";
   $("btnModo").style.display = "block";
   $("btnModo").textContent = modoActual === "nativo" ? "🔄 Probar otro modo" : "🔄 Volver al modo normal";
+  $("btnCam").style.display = (modoActual === "nativo" && camaras.length > 1) ? "block" : "none";
   if(track && track.getCapabilities && track.getCapabilities().torch){
     $("btnLuz").style.display = "block";
   }
@@ -359,12 +407,20 @@ async function detenerCamara(){
   $("btnDetener").style.display = "none";
   $("btnLuz").style.display = "none";
   $("btnModo").style.display = "none";
+  $("btnCam").style.display = "none";
 }
 
 async function cambiarModo(){
   const nuevo = modoActual === "nativo" ? "respaldo" : "nativo";
   await pararTodo();
   await iniciarCamara(nuevo);
+}
+
+async function cambiarCamara(){
+  if(camaras.length < 2) return;
+  camIdx = (camIdx + 1) % camaras.length;
+  await pararTodo();
+  await iniciarCamara("nativo");
 }
 
 async function toggleLuz(){
@@ -380,6 +436,14 @@ $("btnEscanear").addEventListener("click", () => iniciarCamara());
 $("btnDetener").addEventListener("click", detenerCamara);
 $("btnLuz").addEventListener("click", toggleLuz);
 $("btnModo").addEventListener("click", cambiarModo);
+$("btnCam").addEventListener("click", cambiarCamara);
+$("video").addEventListener("click", async () => {
+  if(!track) return;
+  try{
+    await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] });
+    setTimeout(() => { if(track){ try{ track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }catch(e){} } }, 1500);
+  }catch(e){}
+});
 
 $("btnAgregarManual").addEventListener("click", () => {
   const input = $("inputManual");
