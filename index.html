@@ -159,7 +159,7 @@
 
 <div class="panel-lotes" id="panelLotes"></div>
 
-<div class="pie">versión 10 · consulta de stock</div>
+<div class="pie">versión 11 · lectura de códigos más flexible</div>
 
 <div class="consulta" id="consulta" style="display:none;">
   <div class="consulta-top">
@@ -195,8 +195,8 @@
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-<script src="articulos.js?v=10"></script>
-<script src="comun.js?v=10"></script>
+<script src="articulos.js?v=11"></script>
+<script src="comun.js?v=11"></script>
 <script>
 // ---- lotes guardados en el celular ----
 // { lotes: [{id, nombre, creado, cerrado, items: {codigo: {cantidad, descripcion, primera, ultima}}}], activo: id|null }
@@ -295,7 +295,7 @@ function agregarCodigo(codigo, desdeCamara){
     const it = datosDe(codigo);
     let txt = it.desc || ("Artículo " + it.articulo + " (no está en la lista)");
     const extra = [it.color && ("color " + (it.nombreColor || it.color)), it.talle && ("talle " + it.talle), formatoPrecio(it.precio)].filter(Boolean).join(" · ");
-    $("ultimo").textContent = "✓ " + txt + (extra ? "  —  " + extra : "") + "   (x" + datos[codigo].cantidad + ")";
+    $("ultimo").textContent = "✓ " + txt + (extra ? "  —  " + extra : "") + "   (x" + datos[codigo].cantidad + ")" + (it.desc ? "" : "  · se leyó: " + verCrudo(codigo));
   }
 }
 
@@ -371,7 +371,7 @@ function renderLista(){
         <div>
           <div class="item-desc-art ${hayDesc ? "" : "sindato"}">${titulo}</div>
           <div class="item-atributos">${attrs.join(" · ")}${precio ? ' · <span class="item-precio">' + precio + '</span>' : ""}</div>
-          <div class="item-fecha">${esc(codigo)} · ${formatoFecha(item.ultima)}</div>
+          <div class="item-fecha">Se leyó: ${esc(verCrudo(codigo))} · ${formatoFecha(item.ultima)}</div>
         </div>
         <button class="borrar" onclick="borrarCodigo(cod(${i}))">✕</button>
       </div>
@@ -866,7 +866,7 @@ function mostrarStock(texto){
   const filas = STOCK.stock[art] || [];
   const caja = $("resultadoConsulta");
   if(!info.desc && !filas.length){
-    caja.innerHTML = `<div class="res"><div class="res-tit">Artículo ${esc(art)}</div><div class="res-sub">No está en la lista de LINCE.</div></div>`;
+    caja.innerHTML = `<div class="res"><div class="res-tit">Artículo ${esc(art)}</div><div class="res-sub">No está en la lista de LINCE.</div><div class="res-sub">Se leyó: «${esc(verCrudo(texto))}»</div></div>`;
     return;
   }
   const colores = [...new Set(filas.map(f => f[0]))].sort();
@@ -877,6 +877,7 @@ function mostrarStock(texto){
   let h = `<div class="res">
     <div class="res-tit">${esc(info.desc || "Artículo " + art)}</div>
     <div class="res-sub">Art. ${esc(art)}${info.precio != null ? " · " + formatoPrecio(info.precio) : ""}${leido.talle || leido.color ? " · escaneado: " + esc([nombreColor(leido.color) || leido.color, leido.talle].filter(Boolean).join(" ")) : ""}</div>
+    <div class="res-sub" style="font-size:.75rem;">Se leyó: «${esc(verCrudo(texto))}»</div>
     <div class="res-total">Stock total: <b>${total}</b> ${total === 1 ? "prenda" : "prendas"}</div>`;
   if(!filas.length){
     h += `<div class="res-sub">No hay stock cargado en LINCE para este artículo.</div>`;
