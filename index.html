@@ -61,14 +61,43 @@
   #ultimo{text-align:center;color:#66bb6a;font-size:.95rem;font-weight:700;margin:0 12px 6px;min-height:1.2em;}
   .barra-fija{position:fixed;bottom:0;left:0;right:0;background:var(--bg);padding:10px 12px 14px;border-top:1px solid var(--borde);display:flex;gap:10px;}
   .pie{text-align:center;color:#4b5563;font-size:.7rem;margin:14px 0 4px;}
+  .lote-bar{background:var(--panel);margin:12px 12px 0;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;border-left:5px solid #66bb6a;}
+  .lote-bar div{flex:1;min-width:0;}
+  .lote-bar small{color:var(--sub);font-size:.75rem;display:block;}
+  .lote-bar b{font-size:1.1rem;word-break:break-word;}
+  .lote-bar button{flex:none;min-width:0;padding:8px 12px;font-size:.85rem;}
+  .sin-lote{background:var(--panel);margin:12px;border-radius:14px;padding:22px 16px;text-align:center;}
+  .sin-lote p{color:var(--sub);margin:0 0 14px;}
+  .panel-lotes{padding:0 12px;}
+  .panel-lotes h2{font-size:1.05rem;margin:18px 0 8px;}
+  .lote{background:var(--panel);border-radius:12px;padding:12px;margin-bottom:8px;}
+  .lote-nombre{font-weight:700;font-size:1.02rem;}
+  .lote-info{color:var(--sub);font-size:.8rem;margin-top:2px;}
+  .lote-acc{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+  .lote-acc button{flex:1;min-width:90px;padding:10px 8px;font-size:.85rem;}
+  .etq{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px;vertical-align:middle;}
+  .etq-abierto{background:#1b5e20;color:#c8e6c9;}
+  .etq-cerrado{background:#374151;color:#d1d5db;}
+  a.btn-link{display:block;text-align:center;background:#4a148c;color:white;text-decoration:none;border-radius:12px;padding:14px 16px;font-weight:600;margin:8px 0;}
 </style>
 </head>
 <body>
 
 <header>
   <h1>📦 Control de Stock</h1>
-  <p>Escaneá la etiqueta: te muestra artículo, color, talle y precio. Después exportás a Excel.</p>
+  <p>Abrí un lote, escaneá las etiquetas y al cerrarlo bajás la planilla por talle.</p>
 </header>
+
+<div class="sin-lote" id="sinLote" style="display:none;">
+  <p>No hay ningún lote abierto.<br>Un lote es una parte del local que contás de una vez (una pared, un mueble, el depósito…).</p>
+  <button class="btn-verde" id="btnNuevoLote">➕ Empezar lote nuevo</button>
+</div>
+
+<div id="zonaEscaneo">
+<div class="lote-bar">
+  <div><small>Lote abierto</small><b id="nombreLote"></b></div>
+  <button class="btn-gris" id="btnRenombrar">✏️ Nombre</button>
+</div>
 
 <div class="contador">
   <div><span id="totalCodigos">0</span><small>artículos distintos</small></div>
@@ -100,20 +129,41 @@
 </div>
 
 <div class="lista" id="lista"></div>
+</div>
 
-<div class="pie">versión 8 · recuerda la cámara</div>
+<div class="panel-lotes" id="panelLotes"></div>
+
+<div class="pie">versión 9 · lotes y planilla por talle</div>
 
 <div class="barra-fija">
-  <button class="btn-azul" id="btnExportar">⬇ Exportar a Excel</button>
-  <button class="btn-rojo" id="btnVaciar">🗑 Vaciar todo</button>
+  <button class="btn-verde" id="btnCerrarLote">✔ Cerrar lote</button>
+  <button class="btn-gris" id="btnVerLotes">📋 Lotes</button>
 </div>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script src="articulos.js"></script>
+<script src="comun.js"></script>
 <script>
-const CLAVE = "controlStockCodigos_v1";
-let datos = JSON.parse(localStorage.getItem(CLAVE) || "{}");
+// ---- lotes guardados en el celular ----
+// { lotes: [{id, nombre, creado, cerrado, items: {codigo: {cantidad, descripcion, primera, ultima}}}], activo: id|null }
+const CLAVE = "controlStockLotes_v2";
+let estado = { lotes: [], activo: null };
+try{ estado = JSON.parse(localStorage.getItem(CLAVE)) || estado; }catch(e){}
+// lo escaneado con la versión anterior (sin lotes) pasa a un lote abierto
+try{
+  const viejo = JSON.parse(localStorage.getItem("controlStockCodigos_v1") || "{}");
+  if(Object.keys(viejo).length && !estado.lotes.length){
+    const id = Date.now();
+    estado.lotes.push({ id, nombre: "Conteo anterior", creado: new Date().toISOString(), cerrado: null, items: viejo });
+    estado.activo = id;
+    localStorage.setItem(CLAVE, JSON.stringify(estado));
+    localStorage.removeItem("controlStockCodigos_v1");
+  }
+}catch(e){}
+
+function loteActivo(){ return estado.lotes.find(l => l.id === estado.activo && !l.cerrado) || null; }
+let datos = {};   // items del lote abierto
 let ultimoCodigo = null;
 let ultimoTiempo = 0;
 
@@ -137,50 +187,22 @@ try{ camPref = localStorage.getItem("camStockPref") || ""; }catch(e){}
 
 const $ = id => document.getElementById(id);
 
-function guardar(){ localStorage.setItem(CLAVE, JSON.stringify(datos)); }
-
-// ---- catálogo de artículos (viene de articulos.js) ----
-const ARTICULOS = new Map();
-(function(){
-  const raw = window.ARTICULOS_DATA || {};
-  for(const k in raw) ARTICULOS.set(String(k).toUpperCase(), raw[k]);
-})();
-const HAY_CATALOGO = ARTICULOS.size > 0;
-
-// El código de barra viene: ARTICULO % COLOR(2) TALLE
-function buscarArticulo(codigoCompleto){
-  const cod = (codigoCompleto || "").trim();
-  let articulo = cod, color = "", talle = "";
-  const i = cod.indexOf("%");
-  if(i > 0){
-    articulo = cod.slice(0, i);
-    const resto = cod.slice(i + 1);
-    color = resto.slice(0, 2);
-    talle = resto.slice(2);
-  }
-  const info = ARTICULOS.get(articulo.toUpperCase());
-  return {
-    articulo: articulo,
-    color: color.toUpperCase(),
-    talle: talle.toUpperCase(),
-    desc: info ? (info[0] || "") : "",
-    precio: (info && info[1] != null) ? info[1] : null
-  };
+function guardar(){
+  try{ localStorage.setItem(CLAVE, JSON.stringify(estado)); }catch(e){ alert("No se pudo guardar en el celular: " + e.message); }
 }
 
-function formatoPrecio(n){
-  if(n === null || n === undefined || n === "" || isNaN(n)) return "";
-  return "$" + Number(n).toLocaleString("es-AR");
+// artículo, color, talle, descripción y precio de un código escaneado (siempre con la lista actual)
+function datosDe(codigo){
+  const a = leerCodigo(codigo);
+  const info = infoArticulo(a.articulo);
+  return Object.assign(a, { desc: info.desc, precio: info.precio, nombreColor: nombreColor(a.color) });
 }
 
-// completa artículo/color/talle/precio en registros viejos
-function asegurarDatos(codigo){
-  const it = datos[codigo];
-  if(it && it.articulo === undefined){
-    const a = buscarArticulo(codigo);
-    it.articulo = a.articulo; it.color = a.color; it.talle = a.talle;
-    it.desc = a.desc; it.precio = a.precio;
-  }
+function renglonesDe(lote){
+  return Object.keys(lote.items).map(codigo => {
+    const a = leerCodigo(codigo);
+    return { articulo: a.articulo, color: a.color, talle: a.talle, cantidad: lote.items[codigo].cantidad, codigo, nota: lote.items[codigo].descripcion || "" };
+  });
 }
 
 function formatoFecha(iso){
@@ -204,27 +226,23 @@ function beep(){
 function agregarCodigo(codigo, desdeCamara){
   codigo = (codigo || "").trim();
   if(!codigo) return;
+  if(!loteActivo()){ alert("Primero empezá un lote."); return; }
   const ahora = new Date().toISOString();
   if(datos[codigo]){
     datos[codigo].cantidad += 1;
     datos[codigo].ultima = ahora;
-    asegurarDatos(codigo);
   } else {
-    const a = buscarArticulo(codigo);
-    datos[codigo] = {
-      cantidad: 1, descripcion: "", primera: ahora, ultima: ahora,
-      articulo: a.articulo, color: a.color, talle: a.talle, desc: a.desc, precio: a.precio
-    };
+    datos[codigo] = { cantidad: 1, descripcion: "", primera: ahora, ultima: ahora };
   }
   guardar();
   renderLista();
   if(navigator.vibrate) navigator.vibrate(80);
   beep();
   if(desdeCamara){
-    const it = datos[codigo];
+    const it = datosDe(codigo);
     let txt = it.desc || ("Artículo " + it.articulo + " (no está en la lista)");
-    const extra = [it.color && ("color " + it.color), it.talle && ("talle " + it.talle), formatoPrecio(it.precio)].filter(Boolean).join(" · ");
-    $("ultimo").textContent = "✓ " + txt + (extra ? "  —  " + extra : "") + "   (x" + it.cantidad + ")";
+    const extra = [it.color && ("color " + (it.nombreColor || it.color)), it.talle && ("talle " + it.talle), formatoPrecio(it.precio)].filter(Boolean).join(" · ");
+    $("ultimo").textContent = "✓ " + txt + (extra ? "  —  " + extra : "") + "   (x" + datos[codigo].cantidad + ")";
   }
 }
 
@@ -248,17 +266,32 @@ function borrarCodigo(codigo){
   renderLista();
 }
 
-function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+// muestra el lote abierto (o el cartel para empezar uno) y la lista de lotes
+function render(){
+  const lote = loteActivo();
+  datos = lote ? lote.items : {};
+  $("sinLote").style.display = lote ? "none" : "block";
+  $("zonaEscaneo").style.display = lote ? "block" : "none";
+  $("btnCerrarLote").style.display = lote ? "block" : "none";
+  if(lote) $("nombreLote").textContent = lote.nombre;
+  else if(stream || scannerLib) detenerCamara();
+  renderLista();
+  renderLotes();
+}
+
+// atajo para el onclick de los renglones (las comillas del código ya vienen escapadas)
+function cod(i){ return renderLista.claves[i]; }
 
 function renderLista(){
   const lista = $("lista");
   const claves = Object.keys(datos).sort((a,b) => new Date(datos[b].ultima) - new Date(datos[a].ultima));
+  renderLista.claves = claves;
 
   let totalUnidades = 0, totalValor = 0;
   claves.forEach(c => {
-    asegurarDatos(c);
     totalUnidades += datos[c].cantidad;
-    if(datos[c].precio != null) totalValor += datos[c].precio * datos[c].cantidad;
+    const p = datosDe(c).precio;
+    if(p != null) totalValor += p * datos[c].cantidad;
   });
   $("totalCodigos").textContent = claves.length;
   $("totalUnidades").textContent = totalUnidades;
@@ -269,15 +302,16 @@ function renderLista(){
     return;
   }
 
-  lista.innerHTML = claves.map(codigo => {
+  lista.innerHTML = claves.map((codigo, i) => {
     const item = datos[codigo];
-    const hayDesc = !!item.desc;
-    const titulo = hayDesc ? esc(item.desc) : ("Artículo " + esc(item.articulo || codigo) + " — no está en la lista");
+    const d = datosDe(codigo);
+    const hayDesc = !!d.desc;
+    const titulo = hayDesc ? esc(d.desc) : ("Artículo " + esc(d.articulo || codigo) + " — no está en la lista");
     const attrs = [];
-    if(item.articulo) attrs.push("Art. " + esc(item.articulo));
-    if(item.color) attrs.push("color <b>" + esc(item.color) + "</b>");
-    if(item.talle) attrs.push("talle <b>" + esc(item.talle) + "</b>");
-    const precio = formatoPrecio(item.precio);
+    if(d.articulo) attrs.push("Art. " + esc(d.articulo));
+    if(d.color) attrs.push("color <b>" + esc(d.nombreColor ? d.nombreColor + " (" + d.color + ")" : d.color) + "</b>");
+    if(d.talle) attrs.push("talle <b>" + esc(d.talle) + "</b>");
+    const precio = formatoPrecio(d.precio);
     return `
     <div class="item">
       <div class="item-top">
@@ -286,18 +320,137 @@ function renderLista(){
           <div class="item-atributos">${attrs.join(" · ")}${precio ? ' · <span class="item-precio">' + precio + '</span>' : ""}</div>
           <div class="item-fecha">${esc(codigo)} · ${formatoFecha(item.ultima)}</div>
         </div>
-        <button class="borrar" onclick="borrarCodigo('${esc(codigo)}')">✕</button>
+        <button class="borrar" onclick="borrarCodigo(cod(${i}))">✕</button>
       </div>
-      <input class="item-desc" placeholder="Nota (opcional)" value="${esc(item.descripcion)}" onchange="cambiarDescripcion('${esc(codigo)}', this.value)">
+      <input class="item-desc" placeholder="Nota (opcional)" value="${esc(item.descripcion)}" onchange="cambiarDescripcion(cod(${i}), this.value)">
       <div class="item-acciones">
         <div class="stepper">
-          <button onclick="cambiarCantidad('${esc(codigo)}', -1)">−</button>
+          <button onclick="cambiarCantidad(cod(${i}), -1)">−</button>
           <span>${item.cantidad}</span>
-          <button onclick="cambiarCantidad('${esc(codigo)}', 1)">+</button>
+          <button onclick="cambiarCantidad(cod(${i}), 1)">+</button>
         </div>
       </div>
     </div>`;
   }).join("");
+}
+
+function unidadesDe(lote){ return Object.values(lote.items).reduce((s, it) => s + it.cantidad, 0); }
+
+function renderLotes(){
+  const lotes = [...estado.lotes].sort((a, b) => b.id - a.id);
+  const cerrados = lotes.filter(l => l.cerrado);
+  let h = '<h2>📋 Lotes guardados en este celular</h2>';
+  if(!lotes.length) h += '<div class="vacio">Todavía no hay lotes.</div>';
+  h += lotes.map(l => `
+    <div class="lote">
+      <div class="lote-nombre">${esc(l.nombre)}<span class="etq ${l.cerrado ? "etq-cerrado" : "etq-abierto"}">${l.cerrado ? "CERRADO" : "ABIERTO"}</span></div>
+      <div class="lote-info">${unidadesDe(l)} prendas · ${Object.keys(l.items).length} ${Object.keys(l.items).length === 1 ? "código" : "códigos"} · empezado ${formatoFecha(l.creado)}${l.cerrado ? " · cerrado " + formatoFecha(l.cerrado) : ""}</div>
+      <div class="lote-acc">
+        <button class="btn-azul" onclick="bajarLote(${l.id})">⬇ Planilla</button>
+        ${l.cerrado ? `<button class="btn-gris" onclick="reabrirLote(${l.id})">↩ Reabrir</button>` : ""}
+        <button class="btn-rojo" onclick="borrarLote(${l.id})">🗑 Borrar</button>
+      </div>
+    </div>`).join("");
+  if(cerrados.length > 1) h += `<button class="btn-azul" style="width:100%;margin-top:6px;" onclick="bajarTodos()">⬇ Planilla con TODOS los lotes cerrados</button>`;
+  h += '<a class="btn-link" href="comparar.html">📊 Comparar con el stock de LINCE</a>';
+  $("panelLotes").innerHTML = h;
+}
+
+function nuevoLote(){
+  const n = estado.lotes.length + 1;
+  const nombre = prompt("Nombre del lote (por ejemplo: Pared izquierda, Depósito…)", "Lote " + n);
+  if(nombre === null) return;
+  const id = Date.now();
+  estado.lotes.push({ id, nombre: nombre.trim() || ("Lote " + n), creado: new Date().toISOString(), cerrado: null, items: {} });
+  estado.activo = id;
+  guardar();
+  $("ultimo").textContent = "";
+  render();
+  window.scrollTo(0, 0);
+}
+
+function renombrarLote(){
+  const l = loteActivo(); if(!l) return;
+  const nombre = prompt("Nombre del lote", l.nombre);
+  if(nombre === null || !nombre.trim()) return;
+  l.nombre = nombre.trim();
+  guardar(); render();
+}
+
+function cerrarLote(){
+  const l = loteActivo(); if(!l) return;
+  if(!Object.keys(l.items).length){
+    if(confirm("El lote está vacío. ¿Lo borro?")){ estado.lotes = estado.lotes.filter(x => x.id !== l.id); estado.activo = null; guardar(); render(); }
+    return;
+  }
+  if(!confirm(`¿Cerrar el lote "${l.nombre}" con ${unidadesDe(l)} prendas?\nSe baja la planilla en Excel.`)) return;
+  l.cerrado = new Date().toISOString();
+  estado.activo = null;
+  guardar();
+  bajarLote(l.id);
+  render();
+  $("panelLotes").scrollIntoView({ behavior: "smooth" });
+}
+
+function reabrirLote(id){
+  const l = estado.lotes.find(x => x.id === id); if(!l) return;
+  const abierto = loteActivo();
+  if(abierto && !confirm(`Ya está abierto "${abierto.nombre}". Se va a cerrar para reabrir "${l.nombre}". ¿Seguimos?`)) return;
+  if(abierto) abierto.cerrado = new Date().toISOString();
+  l.cerrado = null;
+  estado.activo = id;
+  guardar(); render();
+  window.scrollTo(0, 0);
+}
+
+function borrarLote(id){
+  const l = estado.lotes.find(x => x.id === id); if(!l) return;
+  if(!confirm(`¿Borrar el lote "${l.nombre}" (${unidadesDe(l)} prendas)? No se puede deshacer.`)) return;
+  estado.lotes = estado.lotes.filter(x => x.id !== id);
+  if(estado.activo === id) estado.activo = null;
+  guardar(); render();
+}
+
+// Hoja "Detalle": un renglón por código. comparar.html lee esta hoja.
+function hojaDetalle(lotes){
+  const filas = [];
+  for(const l of lotes){
+    for(const r of renglonesDe(l)){
+      const info = infoArticulo(r.articulo);
+      filas.push({
+        "Lote": l.nombre, "Artículo": r.articulo, "Descripción": info.desc, "Color": r.color,
+        "Nombre color": nombreColor(r.color), "Talle": r.talle, "Cantidad": r.cantidad,
+        "Precio venta": info.precio != null ? info.precio : "", "Subtotal": info.precio != null ? info.precio * r.cantidad : "",
+        "Nota": r.nota, "Código de barra": r.codigo
+      });
+    }
+  }
+  filas.sort((a, b) => compararArticulos(a["Artículo"], b["Artículo"]) || a["Color"].localeCompare(b["Color"]) || compararTalles(a["Talle"], b["Talle"]));
+  const hoja = XLSX.utils.json_to_sheet(filas, { header: ["Lote","Artículo","Descripción","Color","Nombre color","Talle","Cantidad","Precio venta","Subtotal","Nota","Código de barra"] });
+  hoja["!cols"] = [{wch:16},{wch:13},{wch:30},{wch:6},{wch:16},{wch:7},{wch:9},{wch:12},{wch:12},{wch:20},{wch:22}];
+  return hoja;
+}
+
+function bajarPlanilla(lotes, titulo, archivo){
+  const renglones = lotes.flatMap(renglonesDe);
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hojaPlanilla(renglones, titulo), "Planilla");
+  XLSX.utils.book_append_sheet(libro, hojaDetalle(lotes), "Detalle");
+  XLSX.writeFile(libro, archivo);
+}
+
+function bajarLote(id){
+  const l = estado.lotes.find(x => x.id === id); if(!l) return;
+  if(!Object.keys(l.items).length){ alert("Ese lote está vacío."); return; }
+  const fecha = new Date(l.cerrado || Date.now()).toISOString().slice(0, 10);
+  bajarPlanilla([l], `Stock tomado — lote "${l.nombre}" — ${formatoFecha(l.cerrado || new Date().toISOString())}`, `stock_${nombreArchivo(l.nombre)}_${fecha}.xlsx`);
+}
+
+function bajarTodos(){
+  const cerrados = estado.lotes.filter(l => l.cerrado && Object.keys(l.items).length);
+  if(!cerrados.length){ alert("No hay lotes cerrados."); return; }
+  const fecha = new Date().toISOString().slice(0, 10);
+  bajarPlanilla(cerrados, `Stock tomado — ${cerrados.length} lotes: ${cerrados.map(l => l.nombre).join(", ")}`, `stock_todos_los_lotes_${fecha}.xlsx`);
 }
 
 function alDetectar(codigoTexto){
@@ -568,49 +721,12 @@ $("inputManual").addEventListener("keydown", (e) => {
   }
 });
 
-$("btnVaciar").addEventListener("click", () => {
-  if(Object.keys(datos).length === 0) return;
-  if(confirm("¿Borrar todos los códigos escaneados? No se puede deshacer.")){
-    datos = {};
-    guardar();
-    renderLista();
-  }
-});
+$("btnNuevoLote").addEventListener("click", nuevoLote);
+$("btnRenombrar").addEventListener("click", renombrarLote);
+$("btnCerrarLote").addEventListener("click", cerrarLote);
+$("btnVerLotes").addEventListener("click", () => $("panelLotes").scrollIntoView({ behavior: "smooth" }));
 
-$("btnExportar").addEventListener("click", () => {
-  const claves = Object.keys(datos);
-  if(claves.length === 0){
-    alert("Todavía no hay códigos para exportar.");
-    return;
-  }
-  const filas = claves.map(codigo => {
-    const it = datos[codigo];
-    asegurarDatos(codigo);
-    const precio = (it.precio != null) ? it.precio : "";
-    const subtotal = (it.precio != null) ? it.precio * it.cantidad : "";
-    return {
-      "Artículo": it.articulo || "",
-      "Descripción": it.desc || "",
-      "Color": it.color || "",
-      "Talle": it.talle || "",
-      "Precio venta": precio,
-      "Cantidad": it.cantidad,
-      "Subtotal": subtotal,
-      "Nota": it.descripcion || "",
-      "Código de barra": codigo,
-      "Primera lectura": formatoFecha(it.primera),
-      "Última lectura": formatoFecha(it.ultima)
-    };
-  });
-  const hoja = XLSX.utils.json_to_sheet(filas);
-  hoja["!cols"] = [{wch:12},{wch:30},{wch:8},{wch:8},{wch:12},{wch:9},{wch:12},{wch:20},{wch:20},{wch:17},{wch:17}];
-  const libro = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(libro, hoja, "Stock");
-  const fecha = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(libro, `control_stock_${fecha}.xlsx`);
-});
-
-renderLista();
+render();
 if(!HAY_CATALOGO){
   $("estado").textContent = "⚠ No se pudo cargar la lista de artículos (articulos.js). Se escanea igual, pero sin descripción ni precio.";
 }

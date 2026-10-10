@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparar con LINCE</title>
+<meta name="theme-color" content="#1b5e20">
+<style>
+  :root{ --verde:#2e7d32; --azul:#0d47a1; --rojo:#b71c1c; --bg:#111827; --panel:#1f2937; --texto:#f3f4f6; --sub:#9ca3af; --borde:#374151; }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--texto);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+  main{max-width:980px;margin:0 auto;padding:16px;}
+  h1{font-size:1.35rem;margin:6px 0 4px;}
+  .sub{color:var(--sub);margin:0 0 16px;font-size:.92rem;}
+  .paso{background:var(--panel);border-radius:14px;padding:16px;margin-bottom:12px;}
+  .paso h2{font-size:1.02rem;margin:0 0 6px;}
+  .paso p{color:var(--sub);margin:0 0 10px;font-size:.88rem;}
+  .paso code{background:#111827;padding:2px 6px;border-radius:6px;color:#a5d6a7;}
+  input[type=file]{width:100%;padding:10px;border-radius:10px;border:1px dashed var(--borde);background:#111827;color:var(--texto);}
+  .ok{color:#81c784;font-size:.88rem;margin-top:8px;min-height:1.1em;}
+  .err{color:#ef9a9a;}
+  label.op{display:block;padding:6px 0;font-size:.92rem;}
+  button{border:none;border-radius:12px;padding:14px 18px;font-size:1rem;font-weight:600;color:white;cursor:pointer;background:var(--verde);width:100%;}
+  button:disabled{opacity:.45;cursor:default;}
+  .btn-azul{background:var(--azul);}
+  .tarjetas{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0;}
+  .tarjeta{background:var(--panel);border-radius:12px;padding:12px;text-align:center;}
+  .tarjeta b{display:block;font-size:1.4rem;}
+  .tarjeta small{color:var(--sub);font-size:.78rem;}
+  .tabla-wrap{overflow-x:auto;background:var(--panel);border-radius:12px;margin-top:12px;}
+  table{border-collapse:collapse;width:100%;font-size:.84rem;}
+  th,td{padding:6px 8px;border-bottom:1px solid var(--borde);text-align:center;white-space:nowrap;}
+  th{background:#111827;position:sticky;top:0;}
+  td.izq,th.izq{text-align:left;}
+  tr.art td{border-top:2px solid #4b5563;}
+  .neg{color:#ef9a9a;font-weight:700;}
+  .pos{color:#90caf9;font-weight:700;}
+  .tipo{color:var(--sub);font-size:.78rem;}
+  a{color:#a5d6a7;}
+  .pie{text-align:center;color:#4b5563;font-size:.72rem;margin:18px 0;}
+</style>
+</head>
+<body>
+<main>
+  <a href="./">← Volver al escáner</a>
+  <h1>📊 Comparar lo contado con el stock de LINCE</h1>
+  <p class="sub">Los archivos se leen acá mismo, en esta computadora o celular. No se suben a internet.</p>
+
+  <div class="paso">
+    <h2>1. Stock de LINCE (<code>comb.dbf</code>)</h2>
+    <p>Está en la compu del local, en la carpeta <code>C:\linceV3\INV2013\DBF</code>. Conviene copiarlo con LINCE cerrado.</p>
+    <input type="file" id="archLince" accept=".dbf,.DBF">
+    <div class="ok" id="okLince"></div>
+  </div>
+
+  <div class="paso">
+    <h2>2. Planillas que bajaste del escáner (Excel)</h2>
+    <p>Podés elegir varias a la vez (una por lote) o la de “todos los lotes”. No elijas el mismo lote dos veces.</p>
+    <input type="file" id="archConteo" accept=".xlsx,.xls" multiple>
+    <div class="ok" id="okConteo"></div>
+  </div>
+
+  <div class="paso">
+    <h2>3. ¿Qué comparo?</h2>
+    <label class="op"><input type="radio" name="alcance" value="contados" checked> Solo los artículos que conté (si contaste una parte del local)</label>
+    <label class="op"><input type="radio" name="alcance" value="todo"> Todo el stock de LINCE (si contaste el local entero: lo que no contaste aparece como faltante)</label>
+  </div>
+
+  <button id="btnComparar" disabled>Comparar</button>
+
+  <div id="resultado"></div>
+  <div class="pie">Comparación · usa la misma lista de artículos que el escáner</div>
+</main>
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<script src="articulos.js"></script>
+<script src="comun.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let lince = null;    // Map clave -> cantidad en LINCE
+let conteo = null;   // Map clave -> cantidad contada
+let fechaLince = "";
+let resultado = null;
+
+const clave = (a, c, t) => [a, c, t].map(x => String(x == null ? "" : x).trim().toUpperCase()).join("|");
+const partes = k => { const [articulo, color, talle] = k.split("|"); return { articulo, color, talle }; };
+
+// lector de archivos DBF (formato dBASE de LINCE)
+function leerDbf(buf){
+  const dv = new DataView(buf), u8 = new Uint8Array(buf);
+  const n = dv.getUint32(4, true), largoCab = dv.getUint16(8, true), largoReg = dv.getUint16(10, true);
+  const dec = new TextDecoder("windows-1252");
+  const campos = [];
+  let p = 32, desde = 1;
+  while(u8[p] !== 0x0D && p < largoCab){
+    let nombre = "";
+    for(let i = 0; i < 11 && u8[p + i]; i++) nombre += String.fromCharCode(u8[p + i]);
+    const largo = u8[p + 16];
+    campos.push({ nombre, desde, largo });
+    desde += largo; p += 32;
+  }
+  const filas = [];
+  for(let i = 0; i < n; i++){
+    const ini = largoCab + i * largoReg;
+    if(ini + largoReg > u8.length) break;
+    if(u8[ini] === 0x2A) continue; // borrado
+    const f = {};
+    for(const c of campos) f[c.nombre] = dec.decode(u8.subarray(ini + c.desde, ini + c.desde + c.largo)).trim();
+    filas.push(f);
+  }
+  return { campos: campos.map(c => c.nombre), filas };
+}
+
+$("archLince").addEventListener("change", async e => {
+  const f = e.target.files[0]; lince = null; habilitar();
+  if(!f) return;
+  try{
+    const { campos, filas } = leerDbf(await f.arrayBuffer());
+    if(!["COART","COCOL","COTLL","COCANT"].every(c => campos.includes(c))) throw new Error("este archivo no es el comb.dbf de LINCE");
+    lince = new Map();
+    let unidades = 0;
+    for(const r of filas){
+      const cant = parseFloat(r.COCANT) || 0;
+      if(!r.COART || !cant) continue;
+      const k = clave(r.COART, r.COCOL, r.COTLL);
+      lince.set(k, (lince.get(k) || 0) + cant);
+      if(cant > 0) unidades += cant;
+    }
+    fechaLince = new Date(f.lastModified).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
+    $("okLince").className = "ok";
+    $("okLince").textContent = `✓ ${f.name}: ${unidades.toLocaleString("es-AR")} prendas en stock según LINCE (archivo del ${fechaLince}).`;
+  }catch(err){
+    lince = null;
+    $("okLince").className = "ok err";
+    $("okLince").textContent = "✗ No se pudo leer: " + err.message;
+  }
+  habilitar();
+});
+
+$("archConteo").addEventListener("change", async e => {
+  const archivos = [...e.target.files]; conteo = null; habilitar();
+  if(!archivos.length) return;
+  const nuevo = new Map(), msgs = [];
+  let error = "";
+  for(const f of archivos){
+    try{
+      const libro = XLSX.read(await f.arrayBuffer());
+      const hoja = libro.Sheets["Detalle"];
+      if(!hoja) throw new Error("no tiene la hoja “Detalle” (¿es una planilla del escáner?)");
+      let u = 0;
+      for(const r of XLSX.utils.sheet_to_json(hoja, { defval: "" })){
+        const cant = parseFloat(r["Cantidad"]) || 0;
+        if(!r["Artículo"] || !cant) continue;
+        const k = clave(r["Artículo"], r["Color"], r["Talle"]);
+        nuevo.set(k, (nuevo.get(k) || 0) + cant);
+        u += cant;
+      }
+      msgs.push(`${f.name}: ${u} prendas`);
+    }catch(err){ error += `✗ ${f.name}: ${err.message}. `; }
+  }
+  if(error){ $("okConteo").className = "ok err"; $("okConteo").textContent = error; return; }
+  conteo = nuevo;
+  $("okConteo").className = "ok";
+  $("okConteo").textContent = "✓ " + msgs.join(" · ");
+  habilitar();
+});
+
+function habilitar(){ $("btnComparar").disabled = !(lince && conteo); }
+
+$("btnComparar").addEventListener("click", () => {
+  const soloContados = document.querySelector('input[name=alcance]:checked').value === "contados";
+  const artContados = new Set([...conteo.keys()].map(k => partes(k).articulo));
+  const claves = new Set([...conteo.keys()]);
+  for(const k of lince.keys()) if(!soloContados || artContados.has(partes(k).articulo)) claves.add(k);
+
+  const renglones = [];
+  let coinciden = 0, faltan = 0, sobran = 0, valorFalta = 0, valorSobra = 0, totL = 0, totC = 0;
+  for(const k of claves){
+    const L = lince.get(k) || 0, C = conteo.get(k) || 0;
+    if(!L && !C) continue;
+    const p = partes(k), info = infoArticulo(p.articulo), dif = C - L;
+    totL += L; totC += C;
+    if(dif === 0) coinciden++;
+    else if(dif < 0){ faltan += -dif; if(info.precio) valorFalta += -dif * info.precio; }
+    else { sobran += dif; if(info.precio) valorSobra += dif * info.precio; }
+    renglones.push(Object.assign(p, { lince: L, contado: C, dif, desc: info.desc, precio: info.precio }));
+  }
+  renglones.sort((a, b) => compararArticulos(a.articulo, b.articulo) || a.color.localeCompare(b.color) || compararTalles(a.talle, b.talle));
+  resultado = { renglones, soloContados, coinciden, faltan, sobran, valorFalta, valorSobra, totL, totC };
+  mostrar();
+});
+
+// artículo+color con alguna diferencia, con sus talles
+function gruposConDiferencia(renglones){
+  const grupos = new Map();
+  for(const r of renglones){
+    const k = r.articulo + "|" + r.color;
+    if(!grupos.has(k)) grupos.set(k, { articulo: r.articulo, color: r.color, desc: r.desc, precio: r.precio, talles: {}, hayDif: false });
+    const g = grupos.get(k);
+    g.talles[r.talle] = r;
+    if(r.dif) g.hayDif = true;
+  }
+  return [...grupos.values()].filter(g => g.hayDif);
+}
+
+function mostrar(){
+  const R = resultado;
+  const grupos = gruposConDiferencia(R.renglones);
+  const talles = [...new Set(grupos.flatMap(g => Object.keys(g.talles)))].sort(compararTalles);
+  let h = `
+    <div class="tarjetas">
+      <div class="tarjeta"><b>${R.totL.toLocaleString("es-AR")}</b><small>prendas según LINCE</small></div>
+      <div class="tarjeta"><b>${R.totC.toLocaleString("es-AR")}</b><small>prendas contadas</small></div>
+      <div class="tarjeta"><b class="neg">${R.faltan.toLocaleString("es-AR")}</b><small>faltan (están en LINCE, no se contaron)<br>${formatoPrecio(R.valorFalta)}</small></div>
+      <div class="tarjeta"><b class="pos">${R.sobran.toLocaleString("es-AR")}</b><small>sobran (se contaron de más)<br>${formatoPrecio(R.valorSobra)}</small></div>
+      <div class="tarjeta"><b>${R.coinciden.toLocaleString("es-AR")}</b><small>combinaciones que coinciden</small></div>
+    </div>
+    <button class="btn-azul" onclick="bajarComparacion()">⬇ Bajar la comparación en Excel</button>`;
+  if(!grupos.length){
+    h += `<p style="text-align:center;font-size:1.1rem;margin:20px 0;">✅ ¡Todo coincide!</p>`;
+  } else {
+    const max = 250, vis = grupos.slice(0, max);
+    h += `<p class="sub" style="margin-top:14px;">${grupos.length} artículo/color con diferencias${grupos.length > max ? ` (se muestran los primeros ${max}; el Excel tiene todos)` : ""}. Diferencia = contado − LINCE.</p>
+    <div class="tabla-wrap"><table>
+      <tr><th class="izq">Artículo</th><th class="izq">Color</th><th></th>${talles.map(t => `<th>${esc(nombreColumnaTalle(t))}</th>`).join("")}</tr>
+      ${vis.map(g => {
+        const fila = (tipo, campo, cls) => `<td class="tipo">${tipo}</td>` + talles.map(t => {
+          const r = g.talles[t]; if(!r) return "<td></td>";
+          const v = r[campo];
+          if(campo === "dif") return `<td class="${v < 0 ? "neg" : v > 0 ? "pos" : ""}">${v ? (v > 0 ? "+" + v : v) : "✓"}</td>`;
+          return `<td>${v || ""}</td>`;
+        }).join("");
+        const col = nombreColor(g.color);
+        return `<tr class="art"><td class="izq" rowspan="3"><b>${esc(g.articulo)}</b><br><span class="tipo">${esc(g.desc)}</span></td>
+          <td class="izq" rowspan="3">${esc(col || g.color || "—")}${col ? `<br><span class="tipo">${esc(g.color)}</span>` : ""}</td>${fila("LINCE", "lince")}</tr>
+          <tr>${fila("Contado", "contado")}</tr><tr>${fila("Diferencia", "dif")}</tr>`;
+      }).join("")}
+    </table></div>`;
+  }
+  $("resultado").innerHTML = h;
+  $("resultado").scrollIntoView({ behavior: "smooth" });
+}
+
+function bajarComparacion(){
+  const R = resultado;
+  const titulo = `Comparación con LINCE (archivo del ${fechaLince}) — ${R.soloContados ? "solo artículos contados" : "todo el stock"}`;
+  const libro = XLSX.utils.book_new();
+
+  // Hoja 1: diferencias por talle (3 filas por artículo/color)
+  const grupos = gruposConDiferencia(R.renglones);
+  const talles = [...new Set(grupos.flatMap(g => Object.keys(g.talles)))].sort(compararTalles);
+  const aoa = [[titulo], ["Diferencia = contado − LINCE. Negativo: falta. Positivo: hay más que en el sistema."], [],
+    ["Artículo", "Descripción", "Color", "Nombre color", "", ...talles.map(nombreColumnaTalle), "Total", "Precio venta", "Valor"]];
+  for(const g of grupos){
+    for(const [tipo, campo] of [["LINCE", "lince"], ["Contado", "contado"], ["Diferencia", "dif"]]){
+      let tot = 0;
+      const celdas = talles.map(t => { const r = g.talles[t]; const v = r ? r[campo] : 0; tot += v; return r ? v : ""; });
+      const esDif = campo === "dif";
+      aoa.push([g.articulo, g.desc, g.color, nombreColor(g.color), tipo, ...celdas, tot, esDif && g.precio != null ? g.precio : "", esDif && g.precio != null ? tot * g.precio : ""]);
+    }
+    aoa.push([]);
+  }
+  const h1 = XLSX.utils.aoa_to_sheet(aoa);
+  h1["!cols"] = [{wch:13},{wch:28},{wch:6},{wch:16},{wch:10}, ...talles.map(() => ({wch:6})), {wch:7},{wch:12},{wch:13}];
+  XLSX.utils.book_append_sheet(libro, h1, "Diferencias por talle");
+
+  // Hoja 2: lista completa, un renglón por artículo/color/talle
+  const lista = R.renglones.map(r => ({
+    "Artículo": r.articulo, "Descripción": r.desc, "Color": r.color, "Nombre color": nombreColor(r.color), "Talle": r.talle,
+    "LINCE": r.lince, "Contado": r.contado, "Diferencia": r.dif,
+    "Estado": r.dif === 0 ? "OK" : r.dif < 0 ? "FALTA" : "SOBRA",
+    "Precio venta": r.precio != null ? r.precio : "", "Valor diferencia": r.precio != null ? r.dif * r.precio : ""
+  }));
+  const h2 = XLSX.utils.json_to_sheet(lista);
+  h2["!cols"] = [{wch:13},{wch:28},{wch:6},{wch:16},{wch:7},{wch:7},{wch:8},{wch:10},{wch:8},{wch:12},{wch:14}];
+  XLSX.utils.book_append_sheet(libro, h2, "Lista completa");
+
+  // Hoja 3: lo contado, en planilla por talle
+  const contados = R.renglones.filter(r => r.contado).map(r => ({ articulo: r.articulo, color: r.color, talle: r.talle, cantidad: r.contado }));
+  XLSX.utils.book_append_sheet(libro, hojaPlanilla(contados, "Stock contado"), "Contado");
+
+  XLSX.writeFile(libro, `comparacion_lince_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+</script>
+</body>
+</html>
