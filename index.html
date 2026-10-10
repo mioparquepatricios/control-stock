@@ -145,6 +145,7 @@
   <button class="btn-verde" id="btnEscanear">▶ Iniciar cámara</button>
   <button class="btn-gris" id="btnDetener" style="display:none;">■ Detener</button>
   <button class="btn-gris" id="btnLuz" style="display:none;">🔦 Luz</button>
+  <button class="btn-gris" id="btnZoom" style="display:none;">🔍 Zoom</button>
   <button class="btn-gris" id="btnCam" style="display:none;">📷 Otra cámara</button>
   <button class="btn-gris" id="btnModo" style="display:none;">🔄 Otro modo</button>
 </div>
@@ -160,7 +161,7 @@
 
 <div class="panel-lotes" id="panelLotes"></div>
 
-<div class="pie">versión 13 · lector ZXing y pitido</div>
+<div class="pie">versión 14 · zoom y más resolución</div>
 
 <div class="consulta" id="consulta" style="display:none;">
   <div class="consulta-top">
@@ -197,8 +198,8 @@
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-<script src="articulos.js?v=13"></script>
-<script src="comun.js?v=13"></script>
+<script src="articulos.js?v=14"></script>
+<script src="comun.js?v=14"></script>
 <script>
 // ---- lotes guardados en el celular ----
 // { lotes: [{id, nombre, creado, cerrado, items: {codigo: {cantidad, descripcion, primera, ultima}}}], activo: id|null }
@@ -528,7 +529,9 @@ function bajarTodos(){
 
 function alDetectar(codigoTexto){
   const ahora = Date.now();
-  if(codigoTexto === ultimoCodigo && (ahora - ultimoTiempo) < 1800) return;
+  // mientras la misma etiqueta siga frente a la cámara no se vuelve a contar:
+  // cuenta de nuevo recién cuando el código salió del recuadro por más de 1 segundo
+  if(codigoTexto === ultimoCodigo && (ahora - ultimoTiempo) < 1000){ ultimoTiempo = ahora; return; }
   ultimoCodigo = codigoTexto;
   ultimoTiempo = ahora;
   if(consultaAbierta){
@@ -584,7 +587,9 @@ function leerZX(canvas, fuerte){
     const r = fuerte ? lectorZXFuerte : lectorZX;
     if(!r) return null;
     const lum = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-    return r.decodeWithState(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum))).getText();
+    // se alternan dos formas de pasar la imagen a blanco y negro: cada una anda mejor con distinta luz
+    const bin = (leerZX.n = (leerZX.n || 0) + 1) % 2 ? new ZXing.HybridBinarizer(lum) : new ZXing.GlobalHistogramBinarizer(lum);
+    return r.decodeWithState(new ZXing.BinaryBitmap(bin)).getText();
   }catch(e){ return null; }
 }
 
@@ -596,14 +601,16 @@ const _ctx = _cv.getContext("2d", { willReadFrequently: true });
 function pintarDiag(){
   let t = "";
   if(modoActual === "nativo"){
-    t = (detector ? "lector celular+zxing" : "lector zxing") + (resVideo ? " · " + resVideo : "") + " · " + intentos + " lecturas";
+    t = (detector ? "lector celular+zxing" : "lector zxing") + (resVideo ? " · " + resVideo : "") + (zoomMax > 1 ? " · zoom " + zoomActual + "x" : " · sin zoom") + " · " + intentos + " lecturas";
     if(camaras.length > 1) t += " · cám " + (camIdx + 1) + "/" + camaras.length;
     if(detecciones) t += " · " + detecciones + " detectadas";
     if(camPref && camaras[camIdx] && camaras[camIdx].deviceId === camPref) t += " · ✓ recordada";
     if(ultimoError) t += " · error: " + ultimoError;
     if(descartadas) t += " · descartadas " + descartadas + " (" + ultimaDescartada + ")";
     if(intentos > 60 && detecciones === 0 && camaras.length > 1){
-      $("estado").textContent = "Esta cámara no engancha. Tocá 📷 Otra cámara y volvé a probar.";
+      $("estado").textContent = zoomMax > 1
+        ? "No logra leer. Alejá un poco el celular y probá 🔍 Zoom hasta que el código ocupe todo el recuadro. Si no, 📷 Otra cámara."
+        : "Esta cámara no engancha. Tocá 📷 Otra cámara y volvé a probar.";
     }
   } else {
     t = "modo respaldo" + (hayNativo ? "" : " (este navegador no tiene lector nativo)");
@@ -637,10 +644,42 @@ async function enumerarCamaras(){
 }
 
 async function abrirStream(deviceId){
-  const res = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+  // más resolución = barras más nítidas (las etiquetas de LINCE tienen barras muy finas)
+  const res = { width: { ideal: 2560 }, height: { ideal: 1440 } };
   const v = deviceId ? Object.assign({ deviceId: { exact: deviceId } }, res)
                      : Object.assign({ facingMode: { ideal: "environment" } }, res);
   return navigator.mediaDevices.getUserMedia({ video: v, audio: false });
+}
+
+// ---- zoom: con zoom el celular se aleja un poco, enfoca bien y el código igual se ve grande ----
+const NIVELES_ZOOM = [1, 1.5, 2, 2.5, 3, 4];
+let zoomPref = 2;
+try{ zoomPref = parseFloat(localStorage.getItem("zoomStockPref")) || 2; }catch(e){}
+let zoomActual = 1, zoomMax = 1, zoomMin = 1;
+
+async function aplicarZoom(){
+  zoomMax = zoomMin = zoomActual = 1;
+  if(!track || !track.getCapabilities) return;
+  const caps = track.getCapabilities();
+  if(!caps.zoom) return;
+  zoomMin = caps.zoom.min || 1; zoomMax = caps.zoom.max || 1;
+  const z = Math.min(Math.max(zoomPref, zoomMin), zoomMax);
+  try{ await track.applyConstraints({ advanced: [{ zoom: z }] }); zoomActual = z; }catch(e){}
+}
+
+async function siguienteZoom(){
+  if(!track || zoomMax <= 1) return;
+  const posibles = NIVELES_ZOOM.filter(z => z >= zoomMin && z <= zoomMax);
+  const i = posibles.findIndex(z => z > zoomActual + 0.01);
+  zoomPref = i >= 0 ? posibles[i] : posibles[0];
+  try{ localStorage.setItem("zoomStockPref", String(zoomPref)); }catch(e){}
+  await aplicarZoom();
+  pintarBotonZoom();
+}
+
+function pintarBotonZoom(){
+  $("btnZoom").style.display = zoomMax > 1 ? "block" : "none";
+  $("btnZoom").textContent = "🔍 Zoom " + String(zoomActual).replace(".", ",") + "x";
 }
 
 async function prender(video, deviceId){
@@ -649,6 +688,7 @@ async function prender(video, deviceId){
   await video.play();
   track = stream.getVideoTracks()[0];
   try{ await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }catch(e){}
+  await aplicarZoom();
 }
 
 async function arrancarNativo(){
@@ -778,6 +818,7 @@ function mostrarCamaraActiva(msg){
   $("btnModo").style.display = "block";
   $("btnModo").textContent = modoActual === "nativo" ? "🔄 Probar otro modo" : "🔄 Volver al modo normal";
   $("btnCam").style.display = (modoActual === "nativo" && camaras.length > 1) ? "block" : "none";
+  if(modoActual === "nativo") pintarBotonZoom(); else $("btnZoom").style.display = "none";
   if(track && track.getCapabilities && track.getCapabilities().torch){
     $("btnLuz").style.display = "block";
   }
@@ -812,6 +853,7 @@ async function detenerCamara(){
   $("btnLuz").style.display = "none";
   $("btnModo").style.display = "none";
   $("btnCam").style.display = "none";
+  $("btnZoom").style.display = "none";
 }
 
 async function cambiarModo(){
@@ -843,6 +885,7 @@ $("btnDetener").addEventListener("click", detenerCamara);
 $("btnLuz").addEventListener("click", toggleLuz);
 $("btnModo").addEventListener("click", cambiarModo);
 $("btnCam").addEventListener("click", cambiarCamara);
+$("btnZoom").addEventListener("click", siguienteZoom);
 $("video").addEventListener("click", async () => {
   if(!track) return;
   try{
