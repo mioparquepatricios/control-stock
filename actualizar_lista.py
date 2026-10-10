@@ -4,14 +4,22 @@ Uso:  python actualizar_lista.py [carpeta_con_los_dbf]
 Por defecto lee C:\\linceV3\\INV2013\\DBF. Necesita art.dbf, col.dbf, mat.dbf y comb.dbf.
 
 articulos.js lleva SOLO datos de catálogo (descripción, precio, colores, talles).
-Las cantidades de stock NO se publican: la comparación se hace en comparar.html
-leyendo comb.dbf directo en el navegador.
+Las cantidades de stock van en stock.json CIFRADAS (AES-GCM, clave derivada con PBKDF2)
+con la contraseña guardada en CLAVE_ARCHIVO, que queda FUERA del repositorio.
+El botón "Consultar stock" de la app las descifra en el celular con esa contraseña.
 """
+import base64
+import datetime
 import json
 import os
+import secrets
 import struct
 import sys
 from collections import defaultdict
+
+CARPETA = os.path.dirname(os.path.abspath(__file__))
+CLAVE_ARCHIVO = os.path.join(os.path.dirname(CARPETA), "control-stock-CONTRASEÑA.txt")
+ITERACIONES = 250000
 
 
 def leer_dbf(ruta):
@@ -86,11 +94,58 @@ def main():
           "window.COLORES_DATA=" + json.dumps(colores, ensure_ascii=False, separators=(",", ":")) + ";\n"
           "window.CURVAS_DATA=" + json.dumps(curvas, ensure_ascii=False, separators=(",", ":")) + ";\n"
           "window.SIN_COLOR_DATA=" + json.dumps(sin_color, separators=(",", ":")) + ";\n")
-    destino = os.path.join(os.path.dirname(os.path.abspath(__file__)), "articulos.js")
-    with open(destino, "w", encoding="utf-8") as f:
+    with open(os.path.join(CARPETA, "articulos.js"), "w", encoding="utf-8") as f:
         f.write(js)
     print(f"articulos.js: {len(articulos)} artículos, {len(colores)} colores, "
           f"{len(curvas)} curvas de talle, {len(sin_color)} artículos sin color")
+
+    generar_stock(comb, os.path.getmtime(buscar(carpeta, "comb.dbf")))
+
+
+def leer_o_crear_clave():
+    if not os.path.exists(CLAVE_ARCHIVO):
+        palabras = ["remera", "camisa", "jean", "buzo", "campera", "chomba", "bermuda", "sweater",
+                    "saco", "chaleco", "boxer", "media", "gorra", "cinto", "corbata", "polar"]
+        clave = "-".join(secrets.choice(palabras) for _ in range(3)) + "-" + str(secrets.randbelow(900) + 100)
+        with open(CLAVE_ARCHIVO, "w", encoding="utf-8") as f:
+            f.write(clave + "\n\n"
+                    "Contraseña para ver el stock en la app Control de Stock (botón Consultar stock).\n"
+                    "Se pone una sola vez en cada celular. No la compartas.\n"
+                    "Si la cambiás acá, hay que volver a correr actualizar_lista.py y publicar.\n")
+        print(f"Nueva contraseña creada en {CLAVE_ARCHIVO}")
+    with open(CLAVE_ARCHIVO, encoding="utf-8") as f:
+        return f.readline().strip()
+
+
+def generar_stock(comb, fecha_archivo):
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+    suma = defaultdict(float)
+    for r in comb:
+        try:
+            cant = float(r["COCANT"] or 0)
+        except ValueError:
+            continue
+        if r["COART"] and cant:
+            suma[(r["COART"].upper(), r["COCOL"].upper(), r["COTLL"].upper())] += cant
+    stock = defaultdict(list)
+    for (art, color, talle), cant in sorted(suma.items()):
+        if cant:
+            stock[art].append([color, talle, int(cant) if cant == int(cant) else cant])
+
+    fecha = datetime.datetime.fromtimestamp(fecha_archivo).strftime("%Y-%m-%dT%H:%M")
+    plano = json.dumps({"fecha": fecha, "stock": stock}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+    sal, iv = os.urandom(16), os.urandom(12)
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=sal, iterations=ITERACIONES)
+    llave = kdf.derive(leer_o_crear_clave().encode("utf-8"))
+    cifrado = AESGCM(llave).encrypt(iv, plano, None)
+    b64 = lambda b: base64.b64encode(b).decode("ascii")
+    with open(os.path.join(CARPETA, "stock.json"), "w", encoding="utf-8") as f:
+        json.dump({"sal": b64(sal), "iv": b64(iv), "iteraciones": ITERACIONES, "datos": b64(cifrado)}, f)
+    print(f"stock.json (cifrado): {len(stock)} artículos con stock, LINCE del {fecha}")
 
 
 if __name__ == "__main__":

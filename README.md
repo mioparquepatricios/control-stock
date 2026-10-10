@@ -20,6 +20,15 @@ suben a internet.
 7. En **📋 Lotes** podés volver a bajar la planilla, reabrir o borrar un lote, y bajar
    una planilla con **todos los lotes cerrados** juntos.
 
+## Consultar stock (sin abrir lote)
+
+Botón **🔍 Consultar stock de un artículo**: escaneás una etiqueta o escribís el número de
+artículo y muestra el stock de LINCE por color y talle (marca en verde el color/talle escaneado).
+El stock viaja en `stock.json` **cifrado**; la contraseña se pide una vez por celular y está en
+`control-stock-CONTRASEÑA.txt` (en la carpeta de arriba del repo, **fuera** de lo publicado).
+El stock es una foto del momento en que se copió `comb.dbf`: para actualizarlo, correr
+`actualizar_lista.py` y publicar.
+
 ## Comparar con LINCE (`comparar.html`)
 
 Botón **📊 Comparar con el stock de LINCE** (al final de la lista de lotes). Conviene usarlo

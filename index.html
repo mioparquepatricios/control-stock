@@ -78,6 +78,26 @@
   .etq{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px;vertical-align:middle;}
   .etq-abierto{background:#1b5e20;color:#c8e6c9;}
   .etq-cerrado{background:#374151;color:#d1d5db;}
+  .btn-violeta{background:#6a1b9a;}
+  .consulta{position:fixed;inset:0;background:var(--bg);z-index:50;overflow-y:auto;padding-bottom:30px;}
+  .consulta-top{display:flex;align-items:center;justify-content:space-between;padding:14px 12px 6px;font-size:1.15rem;}
+  .consulta-top button{flex:none;min-width:0;padding:10px 14px;font-size:.9rem;}
+  .sub-consulta{color:var(--sub);font-size:.82rem;margin:8px 12px;text-align:center;}
+  .err-consulta{color:#ef9a9a;text-align:center;margin:6px 12px;min-height:1em;}
+  .res{background:var(--panel);margin:10px 12px;border-radius:14px;padding:14px;}
+  .res-tit{font-weight:700;font-size:1.1rem;}
+  .res-sub{color:var(--sub);font-size:.85rem;margin-top:2px;}
+  .res-total{font-size:1rem;margin:10px 0 6px;}
+  .res-total b{color:#66bb6a;font-size:1.3rem;}
+  .grilla{overflow-x:auto;margin-top:8px;}
+  .grilla table{border-collapse:collapse;width:100%;font-size:.9rem;}
+  .grilla th,.grilla td{padding:7px 6px;border-bottom:1px solid var(--borde);text-align:center;white-space:nowrap;}
+  .grilla th{color:var(--sub);font-weight:600;}
+  .grilla td.izq,.grilla th.izq{text-align:left;white-space:normal;}
+  .grilla td.cero{color:#4b5563;}
+  .grilla td.neg{color:#ef9a9a;font-weight:700;}
+  .grilla td.marca{background:#1b5e20;border-radius:6px;font-weight:700;}
+  .grilla tr.marca td.izq{color:#a5d6a7;font-weight:700;}
   a.btn-link{display:block;text-align:center;background:#4a148c;color:white;text-decoration:none;border-radius:12px;padding:14px 16px;font-weight:600;margin:8px 0;}
 </style>
 </head>
@@ -87,6 +107,10 @@
   <h1>📦 Control de Stock</h1>
   <p>Abrí un lote, escaneá las etiquetas y al cerrarlo bajás la planilla por talle.</p>
 </header>
+
+<div class="botones" style="margin-top:4px;">
+  <button class="btn-violeta" id="btnConsultar">🔍 Consultar stock de un artículo</button>
+</div>
 
 <div class="sin-lote" id="sinLote" style="display:none;">
   <p>No hay ningún lote abierto.<br>Un lote es una parte del local que contás de una vez (una pared, un mueble, el depósito…).</p>
@@ -105,6 +129,7 @@
   <div><span id="totalValor">$0</span><small>valor de venta</small></div>
 </div>
 
+<div id="lugarCamara"><div id="bloqueCamara">
 <div class="camara" id="camara">
   <video id="video" playsinline muted></video>
   <div id="reader"></div>
@@ -122,6 +147,7 @@
   <button class="btn-gris" id="btnCam" style="display:none;">📷 Otra cámara</button>
   <button class="btn-gris" id="btnModo" style="display:none;">🔄 Otro modo</button>
 </div>
+</div></div>
 
 <div class="manual">
   <input type="text" id="inputManual" placeholder="O escribí el código a mano" inputmode="numeric">
@@ -133,7 +159,34 @@
 
 <div class="panel-lotes" id="panelLotes"></div>
 
-<div class="pie">versión 9 · lotes y planilla por talle</div>
+<div class="pie">versión 10 · consulta de stock</div>
+
+<div class="consulta" id="consulta" style="display:none;">
+  <div class="consulta-top">
+    <b>🔍 Consultar stock</b>
+    <button class="btn-gris" id="btnCerrarConsulta">✕ Cerrar</button>
+  </div>
+  <div id="consultaClave" style="display:none;">
+    <p class="sub-consulta">El stock está protegido. Poné la contraseña (se pide una sola vez en este celular).</p>
+    <div class="manual">
+      <input type="password" id="inputClave" placeholder="Contraseña" autocomplete="current-password">
+      <button class="btn-azul" id="btnClave" style="flex:none;">Entrar</button>
+    </div>
+    <div id="errClave" class="err-consulta"></div>
+  </div>
+  <div id="consultaCuerpo" style="display:none;">
+    <div class="manual">
+      <input type="text" id="inputConsulta" placeholder="Número de artículo o código" autocapitalize="characters">
+      <button class="btn-azul" id="btnBuscar" style="flex:none;">Buscar</button>
+    </div>
+    <div class="botones" id="botonesConsulta">
+      <button class="btn-verde" id="btnEscanearConsulta">📷 Escanear etiqueta</button>
+    </div>
+    <div id="lugarCamaraConsulta"></div>
+    <div id="resultadoConsulta"></div>
+    <div class="sub-consulta" id="fechaStock"></div>
+  </div>
+</div>
 
 <div class="barra-fija">
   <button class="btn-verde" id="btnCerrarLote">✔ Cerrar lote</button>
@@ -142,8 +195,8 @@
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-<script src="articulos.js?v=9"></script>
-<script src="comun.js?v=9"></script>
+<script src="articulos.js?v=10"></script>
+<script src="comun.js?v=10"></script>
 <script>
 // ---- lotes guardados en el celular ----
 // { lotes: [{id, nombre, creado, cerrado, items: {codigo: {cantidad, descripcion, primera, ultima}}}], activo: id|null }
@@ -274,7 +327,7 @@ function render(){
   $("zonaEscaneo").style.display = lote ? "block" : "none";
   $("btnCerrarLote").style.display = lote ? "block" : "none";
   if(lote) $("nombreLote").textContent = lote.nombre;
-  else if(stream || scannerLib) detenerCamara();
+  else if((stream || scannerLib) && !consultaAbierta) detenerCamara();
   renderLista();
   renderLotes();
 }
@@ -458,6 +511,13 @@ function alDetectar(codigoTexto){
   if(codigoTexto === ultimoCodigo && (ahora - ultimoTiempo) < 1800) return;
   ultimoCodigo = codigoTexto;
   ultimoTiempo = ahora;
+  if(consultaAbierta){
+    if(navigator.vibrate) navigator.vibrate(80);
+    beep();
+    $("inputConsulta").value = codigoTexto;
+    mostrarStock(codigoTexto);
+    return;
+  }
   agregarCodigo(codigoTexto, true);
 }
 
@@ -720,6 +780,134 @@ $("inputManual").addEventListener("keydown", (e) => {
     e.target.value = "";
   }
 });
+
+// ---------- CONSULTAR STOCK ----------
+// stock.json viene cifrado (lo genera actualizar_lista.py). Se descifra acá con la contraseña.
+const CLAVE_STOCK = "controlStockClave";
+let consultaAbierta = false;
+let camaraAntes = false;     // la cámara estaba prendida (en el lote) antes de abrir la consulta
+let STOCK = null;            // { fecha, stock: { ARTICULO: [[color, talle, cantidad], ...] } }
+
+const b64aBytes = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+async function descifrarStock(clave){
+  const r = await fetch("stock.json?t=" + Date.now(), { cache: "no-store" });
+  if(!r.ok) throw new Error("No se pudo bajar el stock (¿hay internet?)");
+  const c = await r.json();
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(clave), "PBKDF2", false, ["deriveKey"]);
+  const llave = await crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: b64aBytes(c.sal), iterations: c.iteraciones, hash: "SHA-256" },
+    base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  let plano;
+  try{
+    plano = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64aBytes(c.iv) }, llave, b64aBytes(c.datos));
+  }catch(e){ const err = new Error("Contraseña incorrecta"); err.clave = true; throw err; }
+  return JSON.parse(new TextDecoder().decode(plano));
+}
+
+async function cargarStock(clave){
+  $("errClave").textContent = "Abriendo el stock…";
+  try{
+    STOCK = await descifrarStock(clave);
+    try{ localStorage.setItem(CLAVE_STOCK, clave); }catch(e){}
+    $("errClave").textContent = "";
+    const f = new Date(STOCK.fecha);
+    $("fechaStock").textContent = "Stock según LINCE del " + f.toLocaleDateString("es-AR") + " a las " + f.toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit", hour12:false}) + " hs. Lo vendido después no está descontado.";
+    $("consultaClave").style.display = "none";
+    $("consultaCuerpo").style.display = "block";
+    return true;
+  }catch(e){
+    if(e.clave){ try{ localStorage.removeItem(CLAVE_STOCK); }catch(x){} }
+    $("consultaClave").style.display = "block";
+    $("consultaCuerpo").style.display = "none";
+    $("errClave").textContent = e.message;
+    return false;
+  }
+}
+
+async function abrirConsulta(){
+  consultaAbierta = true;
+  camaraAntes = !!(stream || scannerLib);
+  $("consulta").style.display = "block";
+  document.body.style.overflow = "hidden";
+  $("resultadoConsulta").innerHTML = "";
+  if(STOCK){ $("consultaClave").style.display = "none"; $("consultaCuerpo").style.display = "block"; }
+  else {
+    let guardada = "";
+    try{ guardada = localStorage.getItem(CLAVE_STOCK) || ""; }catch(e){}
+    if(guardada) await cargarStock(guardada);
+    else { $("consultaClave").style.display = "block"; $("consultaCuerpo").style.display = "none"; }
+  }
+  if(camaraAntes) moverCamara(true);
+}
+
+function moverCamara(aConsulta){
+  $(aConsulta ? "lugarCamaraConsulta" : "lugarCamara").appendChild($("bloqueCamara"));
+  $("botonesConsulta").style.display = aConsulta ? "none" : "flex";
+}
+
+async function cerrarConsulta(){
+  consultaAbierta = false;
+  if(!camaraAntes && (stream || scannerLib)) await detenerCamara();
+  if(!camaraAntes){ $("estado").textContent = ""; $("diag").textContent = ""; }
+  moverCamara(false);
+  $("botonesConsulta").style.display = "flex";
+  $("consulta").style.display = "none";
+  document.body.style.overflow = "";
+  render();
+}
+
+function mostrarStock(texto){
+  texto = String(texto || "").trim();
+  if(!texto || !STOCK) return;
+  const leido = leerCodigo(texto);
+  const art = leido.articulo;
+  const info = infoArticulo(art);
+  const filas = STOCK.stock[art] || [];
+  const caja = $("resultadoConsulta");
+  if(!info.desc && !filas.length){
+    caja.innerHTML = `<div class="res"><div class="res-tit">Artículo ${esc(art)}</div><div class="res-sub">No está en la lista de LINCE.</div></div>`;
+    return;
+  }
+  const colores = [...new Set(filas.map(f => f[0]))].sort();
+  const talles = [...new Set(filas.map(f => f[1]))].sort(compararTalles);
+  const cant = {};
+  let total = 0;
+  for(const [c, t, n] of filas){ cant[c + "|" + t] = (cant[c + "|" + t] || 0) + n; total += n; }
+  let h = `<div class="res">
+    <div class="res-tit">${esc(info.desc || "Artículo " + art)}</div>
+    <div class="res-sub">Art. ${esc(art)}${info.precio != null ? " · " + formatoPrecio(info.precio) : ""}${leido.talle || leido.color ? " · escaneado: " + esc([nombreColor(leido.color) || leido.color, leido.talle].filter(Boolean).join(" ")) : ""}</div>
+    <div class="res-total">Stock total: <b>${total}</b> ${total === 1 ? "prenda" : "prendas"}</div>`;
+  if(!filas.length){
+    h += `<div class="res-sub">No hay stock cargado en LINCE para este artículo.</div>`;
+  } else {
+    h += `<div class="grilla"><table><tr><th class="izq">Color</th>${talles.map(t => `<th>${esc(nombreColumnaTalle(t))}</th>`).join("")}<th>Total</th></tr>`;
+    for(const c of colores){
+      let tc = 0;
+      const esColor = leido.color && c === leido.color;
+      const celdas = talles.map(t => {
+        const n = cant[c + "|" + t] || 0; tc += n;
+        const marca = esColor && t === leido.talle;
+        return `<td class="${marca ? "marca" : n < 0 ? "neg" : n === 0 ? "cero" : ""}">${n || "–"}</td>`;
+      }).join("");
+      const nom = c ? (nombreColor(c) || c) : "Sin color";
+      h += `<tr class="${esColor ? "marca" : ""}"><td class="izq">${esc(nom)}${c && nombreColor(c) ? ` <span style="color:#6b7280;font-size:.75rem">${esc(c)}</span>` : ""}</td>${celdas}<td><b>${tc}</b></td></tr>`;
+    }
+    h += `</table></div>`;
+    if(leido.color && leido.talle && !cant[leido.color + "|" + leido.talle]){
+      h += `<div class="res-sub" style="margin-top:8px;">⚠ De ${esc(nombreColor(leido.color) || leido.color)} talle ${esc(leido.talle)} LINCE no tiene stock.</div>`;
+    }
+  }
+  caja.innerHTML = h + `</div>`;
+}
+
+$("btnConsultar").addEventListener("click", abrirConsulta);
+$("btnCerrarConsulta").addEventListener("click", cerrarConsulta);
+$("btnClave").addEventListener("click", () => cargarStock($("inputClave").value.trim()));
+$("inputClave").addEventListener("keydown", e => { if(e.key === "Enter") cargarStock(e.target.value.trim()); });
+$("btnBuscar").addEventListener("click", () => mostrarStock($("inputConsulta").value));
+$("inputConsulta").addEventListener("keydown", e => { if(e.key === "Enter"){ mostrarStock(e.target.value); e.target.blur(); } });
+$("btnEscanearConsulta").addEventListener("click", () => { moverCamara(true); iniciarCamara(); });
 
 $("btnNuevoLote").addEventListener("click", nuevoLote);
 $("btnRenombrar").addEventListener("click", renombrarLote);
