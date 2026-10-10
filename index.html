@@ -24,10 +24,11 @@
   .contador div span{display:block;font-size:1.25rem;font-weight:700;word-break:break-all;}
   .contador div small{color:var(--sub);font-size:.72rem;}
   .camara{position:relative;width:100%;max-width:480px;margin:0 auto;border-radius:14px;overflow:hidden;background:#000;display:none;}
-  .camara.activa{display:block;}
-  #video{width:100%;display:block;}
-  #reader{width:100%;}
-  .mira{position:absolute;left:6%;right:6%;top:50%;height:20%;transform:translateY(-50%);border:3px solid #66bb6a;border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.22);pointer-events:none;display:none;}
+  /* solo se ve la franja del medio de la cámara, que es donde se lee el código */
+  .camara.activa{display:block;height:150px;}
+  #video{position:absolute;left:0;top:50%;width:100%;transform:translateY(-50%);display:block;}
+  #reader{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);}
+  .mira{position:absolute;left:4%;right:4%;top:12%;bottom:12%;border:3px solid #66bb6a;border-radius:10px;pointer-events:none;display:none;}
   .camara.activa .mira{display:block;}
   #diag{text-align:center;color:#6b7280;font-size:.72rem;margin:2px 12px;min-height:1em;}
   .botones{display:flex;gap:10px;padding:0 12px;margin:12px 0;flex-wrap:wrap;}
@@ -159,7 +160,7 @@
 
 <div class="panel-lotes" id="panelLotes"></div>
 
-<div class="pie">versión 11 · lectura de códigos más flexible</div>
+<div class="pie">versión 12 · solo lee códigos de LINCE</div>
 
 <div class="consulta" id="consulta" style="display:none;">
   <div class="consulta-top">
@@ -195,8 +196,8 @@
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-<script src="articulos.js?v=11"></script>
-<script src="comun.js?v=11"></script>
+<script src="articulos.js?v=12"></script>
+<script src="comun.js?v=12"></script>
 <script>
 // ---- lotes guardados en el celular ----
 // { lotes: [{id, nombre, creado, cerrado, items: {codigo: {cantidad, descripcion, primera, ultima}}}], activo: id|null }
@@ -521,9 +522,31 @@ function alDetectar(codigoTexto){
   agregarCodigo(codigoTexto, true);
 }
 
+// Filtro de lecturas: las etiquetas de LINCE son Code 39 con "%". Si se buscan todos los tipos de
+// código, con etiquetas finitas el lector a veces "inventa" un número corto (ej. 1062447).
+// Solo se acepta una lectura que tenga "%" o sea un artículo de la lista, y que salga 2 veces seguidas.
+let candidato = "", vecesCandidato = 0, tiempoCandidato = 0;
+let descartadas = 0, ultimaDescartada = "";
+function lecturaValida(texto){
+  const c = limpiarCodigo(texto);
+  return c.indexOf("%") > 0 || ARTICULOS.has(c.toUpperCase());
+}
+function procesarLectura(texto){
+  if(!lecturaValida(texto)){
+    descartadas++; ultimaDescartada = verCrudo(texto);
+    pintarDiag();
+    return;
+  }
+  const ahora = Date.now();
+  if(texto === candidato && ahora - tiempoCandidato < 1500) vecesCandidato++;
+  else { candidato = texto; vecesCandidato = 1; }
+  tiempoCandidato = ahora;
+  if(vecesCandidato >= 2) alDetectar(texto);
+}
+
 // ---------- INICIAR / DETENER CÁMARA ----------
 
-const FORMATOS = ["ean_13","ean_8","upc_a","upc_e","code_128","code_39","code_93","itf","codabar","qr_code","data_matrix"];
+const FORMATOS = ["code_39", "code_128"];
 const hayNativo = ("BarcodeDetector" in window);
 const _cv = document.createElement("canvas");
 const _ctx = _cv.getContext("2d", { willReadFrequently: true });
@@ -536,11 +559,13 @@ function pintarDiag(){
     if(detecciones) t += " · " + detecciones + " detectadas";
     if(camPref && camaras[camIdx] && camaras[camIdx].deviceId === camPref) t += " · ✓ recordada";
     if(ultimoError) t += " · error: " + ultimoError;
+    if(descartadas) t += " · descartadas " + descartadas + " (" + ultimaDescartada + ")";
     if(intentos > 60 && detecciones === 0 && camaras.length > 1){
       $("estado").textContent = "Esta cámara no engancha. Tocá 📷 Otra cámara y volvé a probar.";
     }
   } else {
     t = "modo respaldo" + (hayNativo ? "" : " (este navegador no tiene lector nativo)");
+    if(descartadas) t += " · descartadas " + descartadas + " (" + ultimaDescartada + ")";
   }
   $("diag").textContent = t;
 }
@@ -585,7 +610,13 @@ async function prender(video, deviceId){
 }
 
 async function arrancarNativo(){
-  detector = new window.BarcodeDetector();
+  let formatos = FORMATOS;
+  try{
+    const soportados = await window.BarcodeDetector.getSupportedFormats();
+    formatos = FORMATOS.filter(f => soportados.includes(f));
+  }catch(e){}
+  if(!formatos.length) throw new Error("sin code_39");
+  detector = new window.BarcodeDetector({ formats: formatos });
   const video = $("video");
 
   // si ya hay permiso, listamos primero para poder elegir la cámara guardada
@@ -612,7 +643,9 @@ async function arrancarNativo(){
     if(intentos % 5 === 0) pintarDiag();
     try{
       // franja central ampliada (donde está el recuadro verde)
-      const bandH = Math.max(2, Math.round(vh * 0.55));
+      // la franja que se ve en pantalla (150px de alto), con un poco de margen
+      const altoVisible = video.clientWidth ? 150 * vw / video.clientWidth : vh * 0.3;
+      const bandH = Math.max(2, Math.min(vh, Math.round(altoVisible * 1.4)));
       const y0 = Math.round((vh - bandH) / 2);
       const esc = vw < 1000 ? 2 : 1;
       _cv.width = vw * esc; _cv.height = bandH * esc;
@@ -629,7 +662,7 @@ async function arrancarNativo(){
           camPref = id;
           try{ localStorage.setItem("camStockPref", id); }catch(e){}
         }
-        alDetectar(codigos[0].rawValue);
+        procesarLectura(codigos[0].rawValue);
       }
     }catch(e){
       ultimoError = (e && e.name) || "?";
@@ -669,12 +702,13 @@ async function iniciarCamara(modo){
   try{
     scannerLib = new Html5Qrcode("reader", {
       experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      formatsToSupport: [Html5QrcodeSupportedFormats.CODE_39, Html5QrcodeSupportedFormats.CODE_128],
       verbose: false
     });
     await scannerLib.start(
       { facingMode: "environment" },
       { fps: 20, qrbox: (w,h) => { const an = Math.floor(Math.min(w,h)*0.92); return { width:an, height:Math.floor(an*0.42) }; } },
-      alDetectar,
+      procesarLectura,
       () => {}
     );
     mostrarCamaraActiva("Apuntá al código de barra");
