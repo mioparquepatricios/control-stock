@@ -160,7 +160,7 @@
 
 <div class="panel-lotes" id="panelLotes"></div>
 
-<div class="pie">versión 12 · solo lee códigos de LINCE</div>
+<div class="pie">versión 13 · lector ZXing y pitido</div>
 
 <div class="consulta" id="consulta" style="display:none;">
   <div class="consulta-top">
@@ -195,9 +195,10 @@
 </div>
 
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-<script src="articulos.js?v=12"></script>
-<script src="comun.js?v=12"></script>
+<script src="articulos.js?v=13"></script>
+<script src="comun.js?v=13"></script>
 <script>
 // ---- lotes guardados en el celular ----
 // { lotes: [{id, nombre, creado, cerrado, items: {codigo: {cantidad, descripcion, primera, ultima}}}], activo: id|null }
@@ -264,16 +265,34 @@ function formatoFecha(iso){
   return d.toLocaleDateString("es-AR") + " " + d.toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit"});
 }
 
-function beep(){
+// El celular solo deja hacer sonido si el audio se "enciende" con un toque en la pantalla.
+let audioCtx = null;
+function prepararSonido(){
   try{
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.frequency.value = 880;
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.1);
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === "suspended") audioCtx.resume();
+  }catch(e){}
+}
+document.addEventListener("pointerdown", prepararSonido);
+document.addEventListener("touchend", prepararSonido);
+
+// pitido de lector de código: corto, agudo y fuerte
+function beep(){
+  prepararSonido();
+  if(!audioCtx) return;
+  try{
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "square";
+    osc.frequency.value = 1900;
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.5, t + 0.01);
+    gain.gain.setValueAtTime(0.5, t + 0.13);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    osc.start(t);
+    osc.stop(t + 0.17);
   }catch(e){}
 }
 
@@ -538,6 +557,8 @@ function procesarLectura(texto){
     return;
   }
   const ahora = Date.now();
+  const c = leerCodigo(texto);
+  if(limpiarCodigo(texto).indexOf("%") > 0 && ARTICULOS.has(c.articulo)){ alDetectar(texto); return; }
   if(texto === candidato && ahora - tiempoCandidato < 1500) vecesCandidato++;
   else { candidato = texto; vecesCandidato = 1; }
   tiempoCandidato = ahora;
@@ -545,6 +566,27 @@ function procesarLectura(texto){
 }
 
 // ---------- INICIAR / DETENER CÁMARA ----------
+
+// Lector ZXing (Code 39 y Code 128). "fuerte" revisa más renglones de la imagen: más lento.
+let lectorZX = null, lectorZXFuerte = null;
+function crearLectorZX(fuerte){
+  if(!window.ZXing) return null;
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_128]);
+  if(fuerte) hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  const r = new ZXing.MultiFormatReader();
+  r.setHints(hints);
+  return r;
+}
+function leerZX(canvas, fuerte){
+  try{
+    if(!lectorZX){ lectorZX = crearLectorZX(false); lectorZXFuerte = crearLectorZX(true); }
+    const r = fuerte ? lectorZXFuerte : lectorZX;
+    if(!r) return null;
+    const lum = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+    return r.decodeWithState(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum))).getText();
+  }catch(e){ return null; }
+}
 
 const FORMATOS = ["code_39", "code_128"];
 const hayNativo = ("BarcodeDetector" in window);
@@ -554,7 +596,7 @@ const _ctx = _cv.getContext("2d", { willReadFrequently: true });
 function pintarDiag(){
   let t = "";
   if(modoActual === "nativo"){
-    t = "lector nativo" + (resVideo ? " · " + resVideo : "") + " · " + intentos + " lecturas";
+    t = (detector ? "lector celular+zxing" : "lector zxing") + (resVideo ? " · " + resVideo : "") + " · " + intentos + " lecturas";
     if(camaras.length > 1) t += " · cám " + (camIdx + 1) + "/" + camaras.length;
     if(detecciones) t += " · " + detecciones + " detectadas";
     if(camPref && camaras[camIdx] && camaras[camIdx].deviceId === camPref) t += " · ✓ recordada";
@@ -615,8 +657,7 @@ async function arrancarNativo(){
     const soportados = await window.BarcodeDetector.getSupportedFormats();
     formatos = FORMATOS.filter(f => soportados.includes(f));
   }catch(e){}
-  if(!formatos.length) throw new Error("sin code_39");
-  detector = new window.BarcodeDetector({ formats: formatos });
+  try{ detector = formatos.length ? new window.BarcodeDetector({ formats: formatos }) : null; }catch(e){ detector = null; }
   const video = $("video");
 
   // si ya hay permiso, listamos primero para poder elegir la cámara guardada
@@ -635,8 +676,10 @@ async function arrancarNativo(){
     }
   }
 
+  let ocupado = false;
   loopId = setInterval(async () => {
-    if(video.readyState < 2 || !video.videoWidth) return;
+    if(ocupado || video.readyState < 2 || !video.videoWidth) return;
+    ocupado = true;
     const vw = video.videoWidth, vh = video.videoHeight;
     if(!resVideo) resVideo = vw + "x" + vh;
     intentos++;
@@ -650,11 +693,16 @@ async function arrancarNativo(){
       const esc = vw < 1000 ? 2 : 1;
       _cv.width = vw * esc; _cv.height = bandH * esc;
       _ctx.drawImage(video, 0, y0, vw, bandH, 0, 0, _cv.width, _cv.height);
-      let codigos = await detector.detect(_cv);
-      if((!codigos || !codigos.length) && intentos % 4 === 0){
-        codigos = await detector.detect(video); // de vez en cuando, el cuadro completo
+      // 1) lector del celular (rápido)  2) ZXing, que lee bien las etiquetas finitas de LINCE
+      let texto = null;
+      if(detector){
+        try{ const cs = await detector.detect(_cv); if(cs && cs.length) texto = cs[0].rawValue; }catch(e){}
       }
-      if(codigos && codigos.length){
+      if(!texto || !lecturaValida(texto)){
+        const z = leerZX(_cv, intentos % 3 === 0);
+        if(z) texto = z;
+      }
+      if(texto){
         detecciones++;
         // recordar esta cámara: es la que funciona
         const id = camaras[camIdx] && camaras[camIdx].deviceId;
@@ -662,17 +710,17 @@ async function arrancarNativo(){
           camPref = id;
           try{ localStorage.setItem("camStockPref", id); }catch(e){}
         }
-        procesarLectura(codigos[0].rawValue);
+        procesarLectura(texto);
       }
     }catch(e){
       ultimoError = (e && e.name) || "?";
       pintarDiag();
-    }
-  }, 130);
+    }finally{ ocupado = false; }
+  }, 100);
 }
 
 async function iniciarCamara(modo){
-  modoActual = modo || (hayNativo ? "nativo" : "respaldo");
+  modoActual = modo || "nativo";   // "nativo" = nuestro lector (celular + ZXing), funciona aunque no haya BarcodeDetector
   intentos = 0; detecciones = 0; ultimoError = ""; resVideo = "";
   $("estado").textContent = "Iniciando cámara...";
   $("btnEscanear").disabled = true;
@@ -701,7 +749,7 @@ async function iniciarCamara(modo){
   // ---- MODO RESPALDO: librería html5-qrcode ----
   try{
     scannerLib = new Html5Qrcode("reader", {
-      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      experimentalFeatures: { useBarCodeDetectorIfSupported: false },
       formatsToSupport: [Html5QrcodeSupportedFormats.CODE_39, Html5QrcodeSupportedFormats.CODE_128],
       verbose: false
     });
