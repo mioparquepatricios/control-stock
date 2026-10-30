@@ -90,6 +90,70 @@
   .clave input:focus{border-color:var(--acento);}
   .clave .btn{width:100%;height:48px;margin-top:10px;}
   #errClave{color:var(--rojo);min-height:1.2em;margin-top:10px;font-size:.9rem;}
+  .btn-escanear{width:100%;height:46px;margin-top:10px;background:var(--grafito);color:#fff;border:0;border-radius:12px;font-weight:600;font-size:1rem;}
+  .btn-escanear:active{background:#1F2937;}
+  #bloqueCamara{display:none;margin-top:10px;}
+  .camara{position:relative;height:150px;border-radius:12px;overflow:hidden;background:#000;}
+  #video{position:absolute;left:0;top:50%;width:100%;transform:translateY(-50%);display:block;}
+  .mira{position:absolute;left:4%;right:4%;top:12%;bottom:12%;border:3px solid #34D399;border-radius:10px;pointer-events:none;}
+  #estadoCam{text-align:center;font-size:.9rem;color:var(--texto2);margin-top:8px;min-height:1.2em;}
+  #estadoCam.ok{color:var(--verde);font-weight:600;}
+  #diag{text-align:center;color:var(--suave);font-size:.7rem;margin-top:2px;min-height:1em;word-break:break-all;}
+  .cam-botones{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  .cam-botones button{flex:1;min-width:80px;border:1px solid var(--borde2);background:#fff;color:var(--texto);border-radius:10px;padding:10px 6px;font-size:.85rem;font-weight:600;}
+  .cam-botones #btnDetener{background:var(--rojo);border-color:var(--rojo);color:#fff;}
+  td.marca{background:#059669 !important;color:#fff !important;outline:2px solid #047857;}
+  tr.marca td.color{font-weight:700;color:var(--verde);}
+  .leido{font-size:.78rem;color:var(--suave);padding:0 14px 8px;}
+  .acciones-res{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 4px 6px;}
+  .acciones-res #resumenLinea{margin:0;}
+  #btnImprimir{display:none;flex:none;border:0;border-radius:10px;background:var(--grafito);color:#fff;padding:9px 14px;font-weight:600;font-size:.9rem;}
+  .velo{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:20;display:none;align-items:flex-end;justify-content:center;}
+  .hoja-op{background:var(--fondo);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:18px 16px calc(16px + env(safe-area-inset-bottom));max-height:92vh;overflow-y:auto;}
+  .hoja-op .kick{font-size:.68rem;font-weight:700;letter-spacing:.06em;color:var(--acento);}
+  .hoja-op h3{margin:2px 0 12px;font-size:1.1rem;}
+  .numeros{display:flex;gap:8px;margin-bottom:12px;}
+  .numeros div{flex:1;background:#fff;border:1px solid var(--borde);border-radius:12px;padding:8px 10px;}
+  .numeros small{display:block;font-size:.65rem;color:var(--suave);font-weight:600;letter-spacing:.04em;}
+  .numeros b{font-size:1.3rem;}
+  .formato{display:flex;align-items:center;gap:10px;background:#fff;border:2px solid var(--borde);border-radius:12px;padding:10px 12px;margin-bottom:8px;}
+  .formato.sel{border-color:var(--acento);background:var(--acento-suave);}
+  .formato .ic{font-size:1.2rem;width:26px;text-align:center;color:var(--suave);}
+  .formato.sel .ic,.formato.sel .pt{color:var(--acento);}
+  .formato div{flex:1;}
+  .formato b{display:block;font-size:.95rem;}
+  .formato small{color:var(--texto2);font-size:.78rem;}
+  .formato .pt{font-size:1.1rem;color:var(--borde2);}
+  .hoja-op .fila-bot{display:flex;gap:8px;margin-top:14px;}
+  .hoja-op .fila-bot button{height:48px;border-radius:12px;font-weight:600;font-size:1rem;}
+  #btnCancelarImp{flex:none;width:110px;border:1px solid var(--borde2);background:#fff;color:var(--texto2);}
+  #btnHacerImp{flex:1;border:0;background:var(--acento);color:#fff;}
+  #hojaImpresion{display:none;}
+  @media print{
+    @page{size:A4;margin:10mm;}
+    body{background:#fff;}
+    body > *:not(#hojaImpresion){display:none !important;}
+    #hojaImpresion{display:block;font-family:Arial,Helvetica,sans-serif;color:#000;font-size:10pt;}
+    .pi-cab{display:flex;align-items:baseline;gap:10px;border-bottom:1.5px solid #555;padding-bottom:4px;margin-bottom:8px;}
+    .pi-cab b{font-size:13pt;}
+    .pi-cab span{font-size:9pt;flex:1;}
+    .pi-art{break-inside:avoid;margin-bottom:9px;}
+    .pi-tit{display:flex;align-items:baseline;gap:8px;font-size:10.5pt;margin-bottom:2px;}
+    .pi-tit .d{flex:1;}
+    .pi-tit .p{color:#666;font-size:9.5pt;}
+    .pi-art table{border-collapse:collapse;font-size:10pt;}
+    .pi-art th{background:#EEF0F4 !important;color:#555;font-size:7.5pt;padding:3px 6px;border:0.5pt solid #ccc;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .pi-art td{border:0.5pt solid #ccc;padding:3px 6px;text-align:center;min-width:9mm;font-weight:700;}
+    .pi-art td.col{text-align:left;font-weight:400;min-width:38mm;max-width:60mm;white-space:nowrap;overflow:hidden;}
+    .pi-art td.neg{color:#c00;}
+    .pi-art tr.pedir td{height:7mm;border:0.8pt solid #777;}
+    .pi-art tr.pedir td.col{border:0;text-align:right;color:#777;font-size:7.5pt;}
+    .pi-tot{width:100%;border-collapse:collapse;}
+    .pi-tot td{border-bottom:0.5pt solid #ddd;padding:3px 4px;font-size:10pt;}
+    .pi-tot td.c{font-weight:700;width:1%;white-space:nowrap;}
+    .pi-tot td.p{color:#666;text-align:right;width:1%;white-space:nowrap;}
+    .pi-tot td.t{font-weight:700;text-align:right;width:1%;}
+  }
   .arriba{position:fixed;right:14px;bottom:calc(16px + env(safe-area-inset-bottom));width:46px;height:46px;border-radius:50%;border:0;background:var(--grafito);color:#fff;font-size:1.2rem;display:none;box-shadow:0 4px 12px rgba(0,0,0,.25);}
 </style>
 </head>
@@ -125,6 +189,18 @@
         </label>
         <button class="btn prim" type="submit">Buscar</button>
       </form>
+      <button class="btn-escanear" id="btnEscanear" type="button">📷 Escanear etiqueta</button>
+      <div id="bloqueCamara">
+        <div class="camara"><video id="video" playsinline muted></video><div class="mira"></div></div>
+        <div id="estadoCam"></div>
+        <div id="diag"></div>
+        <div class="cam-botones">
+          <button id="btnDetener" type="button">■ Detener</button>
+          <button id="btnLuz" type="button" style="display:none">🔦 Luz</button>
+          <button id="btnZoom" type="button" style="display:none">🔍 Zoom</button>
+          <button id="btnCam" type="button" style="display:none">📷 Otra cámara</button>
+        </div>
+      </div>
       <div class="chips">
         <button class="chip" data-t="106.4478">106.4478 · un artículo</button>
         <button class="chip" data-t="106.4478 187.057">106.4478 187.057 · varios</button>
@@ -136,12 +212,30 @@
         <label class="sw"><input type="checkbox" id="mostrarVacios"><i></i>Colores sin stock</label>
       </div>
     </div>
-    <div id="resumenLinea"></div>
+    <div class="acciones-res"><div id="resumenLinea"></div><button id="btnImprimir" type="button">🖨 Imprimir</button></div>
     <div id="resultados"><div class="mensaje">Escribí uno o varios artículos y tocá Buscar.</div></div>
   </section>
 </main>
 <button class="arriba" id="btnArriba" aria-label="Volver arriba">↑</button>
 
+<div class="velo" id="veloImp">
+  <div class="hoja-op">
+    <div class="kick">IMPRIMIR LISTADO</div>
+    <h3>Elegí cómo querés la hoja</h3>
+    <div class="numeros">
+      <div><small>ARTÍCULOS</small><b id="impArts">0</b></div>
+      <div><small>UNIDADES</small><b id="impUnid">0</b></div>
+    </div>
+    <div class="formato sel" data-f="detalle"><span class="ic">▦</span><div><b>Detalle color y talle</b><small>La grilla de cada artículo, solo talles con stock.</small></div><span class="pt">●</span></div>
+    <div class="formato" data-f="totales"><span class="ic">☰</span><div><b>Solo totales</b><small>Una línea por artículo. La opción más corta.</small></div><span class="pt">○</span></div>
+    <div class="formato" data-f="reponer"><span class="ic">✎</span><div><b>Para reposición</b><small>Todos los talles y un renglón en blanco debajo de cada color para anotar cuánto pedir.</small></div><span class="pt">○</span></div>
+    <label class="sw" style="margin-top:6px"><input type="checkbox" id="impPrecio" checked><i></i>Incluir precio de venta</label>
+    <div class="fila-bot"><button id="btnCancelarImp" type="button">Cancelar</button><button id="btnHacerImp" type="button">🖨 Imprimir</button></div>
+  </div>
+</div>
+<div id="hojaImpresion"></div>
+
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script>
   // articulos.js (catálogo) y comun.js están en la carpeta de Control de Stock.
   // Se cargan con la fecha en la dirección para no usar una copia vieja guardada.
@@ -154,7 +248,9 @@ const $ = id => document.getElementById(id);
 const CLAVE_STOCK = "controlStockClave";   // la misma que usa Control de Stock
 const MAX_ARTICULOS = 60;
 let STOCK = null;   // { fecha, stock: { ART: [[color, talle, cant], ...] } }
-let POR_ART = {};   // ART -> Map("color|talle" -> cant)
+let POR_ART = {};
+let ULTIMOS = [];   // artículos de la última búsqueda (para imprimir)
+let MARCA = null;   // { articulo, color, talle, crudo } de la última etiqueta escaneada   // ART -> Map("color|talle" -> cant)
 
 const b64aBytes = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 
@@ -262,6 +358,9 @@ function consultar(){
   const texto = $("entrada").value;
   $("btnBorrar").style.display = texto ? "block" : "none";
   const { encontrados, avisos } = buscar(texto, $("soloConStock").checked);
+  ULTIMOS = encontrados;
+  $("btnImprimir").style.display = encontrados.length ? "block" : "none";
+  if(MARCA && !encontrados.includes(MARCA.articulo)) MARCA = null;
   const caja = $("resultados");
   if(!encontrados.length && !avisos.length){
     $("resumenLinea").textContent = "";
@@ -290,15 +389,23 @@ function consultar(){
     h += `<div class="card art" id="art-${esc(c)}">
       <div class="cab"><span class="cod">${esc(c)}</span><span class="desc">${esc(info.desc || "(no está en la lista de artículos)")}</span></div>
       <div class="datos"><span>${info.precio != null ? esc(formatoPrecio(info.precio)) : ""}</span><span>Total: <b style="color:${tot < 0 ? "var(--rojo)" : "inherit"}">${fmt(tot)}</b></span></div>`;
+    const marca = MARCA && MARCA.articulo === c ? MARCA : null;
+    if(marca){
+      const n = (POR_ART[c] || new Map()).get(marca.color + "|" + marca.talle) || 0;
+      const que = [marca.color && (nombreColor(marca.color) || marca.color), marca.talle && ("talle " + marca.talle)].filter(Boolean).join(" ");
+      h += `<div class="leido">📷 Escaneado: <b>${esc(que || "artículo")}</b> → ${n ? "hay <b>" + fmt(n) + "</b>" : '<b style="color:var(--rojo)">sin stock</b>'} · se leyó «${esc(verCrudo(marca.crudo))}»</div>`;
+    }
     if(!filas.length){
       h += '<div class="sin">Sin stock en ningún color ni talle.</div>';
     } else {
       h += '<div class="grilla"><table><tr><th class="color">COLOR</th>' + talles.map(t => `<th>${esc(t || "S/T")}</th>`).join("") + '<th>TOTAL</th></tr>';
       for(const f of filas){
         const nom = f.color ? `${f.color} ${nombreColor(f.color)}`.trim() : "Sin color";
-        h += `<tr><td class="color">${esc(nom)}</td>` + talles.map(t => {
+        const filaMarca = marca && marca.color === f.color;
+        h += `<tr class="${filaMarca ? "marca" : ""}"><td class="color">${esc(nom)}</td>` + talles.map(t => {
           const n = f.por[t] || 0;
-          return `<td class="${n > 0 ? "c pos" : n < 0 ? "c neg" : "cero"}">${n ? fmt(n) : "·"}</td>`;
+          const m = filaMarca && t === marca.talle ? " marca" : "";
+          return `<td class="${(n > 0 ? "c pos" : n < 0 ? "c neg" : "cero") + m}">${n ? fmt(n) : "·"}</td>`;
         }).join("") + `<td class="tot${f.tot < 0 ? " neg" : ""}">${fmt(f.tot)}</td></tr>`;
       }
       h += "</table></div>";
@@ -308,7 +415,7 @@ function consultar(){
   caja.innerHTML = h;
 }
 
-$("formBuscar").addEventListener("submit", e => { e.preventDefault(); $("entrada").blur(); consultar(); });
+$("formBuscar").addEventListener("submit", e => { e.preventDefault(); MARCA = null; $("entrada").blur(); consultar(); });
 $("entrada").addEventListener("input", () => { $("btnBorrar").style.display = $("entrada").value ? "block" : "none"; });
 $("btnBorrar").addEventListener("click", () => { $("entrada").value = ""; consultar(); $("entrada").focus(); });
 document.querySelectorAll(".chip").forEach(b => b.addEventListener("click", () => { $("entrada").value = b.dataset.t; consultar(); }));
@@ -326,6 +433,352 @@ $("btnRecargar").addEventListener("click", () => {
 });
 window.addEventListener("scroll", () => { $("btnArriba").style.display = scrollY > 500 ? "block" : "none"; });
 $("btnArriba").addEventListener("click", () => scrollTo({ top: 0, behavior: "smooth" }));
+
+// ================= LECTOR DE CÓDIGO DE BARRA =================
+// Es el mismo lector de Control de Stock, con lo aprendido allá (versiones 6 a 14):
+//  - Las etiquetas de LINCE son Code 39 finitas: el lector propio de Android no las lee bien → ZXing es el principal.
+//  - Solo Code 39 y Code 128; si no, el lector "inventa" números cortos (ej. 1062447).
+//  - Se acepta una lectura con "%" de un artículo de la lista; si no trae "%", tiene que salir 2 veces igual.
+//  - Se analiza solo la franja del medio (lo que se ve en pantalla), con zoom 2x de entrada (se aleja y enfoca bien).
+//  - La cámara por defecto puede ser la gran angular, que no enfoca de cerca: se prefiere la trasera principal,
+//    hay botón "Otra cámara" y se recuerda la que leyó.
+let stream = null, track = null, loopId = null, detector = null, luz = false;
+let intentos = 0, detecciones = 0, descartadas = 0, ultimaDescartada = "", resVideo = "";
+let camaras = [], camIdx = 0, camPref = "", cicladoManual = false;
+try{ camPref = localStorage.getItem("camStockPref") || ""; }catch(e){}
+
+let audioCtx = null;
+function prepararSonido(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === "suspended") audioCtx.resume();
+  }catch(e){}
+}
+document.addEventListener("pointerdown", prepararSonido);
+document.addEventListener("touchend", prepararSonido);
+function beep(){
+  prepararSonido();
+  if(!audioCtx) return;
+  try{
+    const t = audioCtx.currentTime, osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+    osc.type = "square"; osc.frequency.value = 1900;
+    osc.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5, t + 0.01);
+    g.gain.setValueAtTime(0.5, t + 0.13); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    osc.start(t); osc.stop(t + 0.17);
+  }catch(e){}
+}
+
+let ultimoCodigo = "", ultimoTiempo = 0;
+function alDetectar(texto){
+  const ahora = Date.now();
+  // la misma etiqueta frente a la cámara no se vuelve a procesar hasta que salga del recuadro más de 1 segundo
+  if(texto === ultimoCodigo && ahora - ultimoTiempo < 1000){ ultimoTiempo = ahora; return; }
+  ultimoCodigo = texto; ultimoTiempo = ahora;
+  if(navigator.vibrate) navigator.vibrate(80);
+  beep();
+  const l = leerCodigo(texto);
+  MARCA = { articulo: l.articulo, color: l.color, talle: l.talle, crudo: texto };
+  $("entrada").value = l.articulo;
+  const desc = infoArticulo(l.articulo).desc;
+  $("estadoCam").textContent = "✓ " + (desc || "Artículo " + l.articulo) +
+    [l.color && " · " + (nombreColor(l.color) || l.color), l.talle && " · talle " + l.talle].filter(Boolean).join("");
+  $("estadoCam").className = "ok";
+  consultar();
+}
+
+let candidato = "", vecesCandidato = 0, tiempoCandidato = 0;
+function lecturaValida(texto){
+  const c = limpiarCodigo(texto);
+  return c.indexOf("%") > 0 || ARTICULOS.has(c.toUpperCase());
+}
+function procesarLectura(texto){
+  if(!lecturaValida(texto)){ descartadas++; ultimaDescartada = verCrudo(texto); pintarDiag(); return; }
+  const ahora = Date.now();
+  if(limpiarCodigo(texto).indexOf("%") > 0 && ARTICULOS.has(leerCodigo(texto).articulo)){ alDetectar(texto); return; }
+  if(texto === candidato && ahora - tiempoCandidato < 1500) vecesCandidato++;
+  else { candidato = texto; vecesCandidato = 1; }
+  tiempoCandidato = ahora;
+  if(vecesCandidato >= 2) alDetectar(texto);
+}
+
+let lectorZX = null, lectorZXFuerte = null, vueltaZX = 0;
+function crearLectorZX(fuerte){
+  if(!window.ZXing) return null;
+  const hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.CODE_39, ZXing.BarcodeFormat.CODE_128]);
+  if(fuerte) hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  const r = new ZXing.MultiFormatReader(); r.setHints(hints); return r;
+}
+function leerZX(canvas, fuerte){
+  try{
+    if(!lectorZX){ lectorZX = crearLectorZX(false); lectorZXFuerte = crearLectorZX(true); }
+    const r = fuerte ? lectorZXFuerte : lectorZX;
+    if(!r) return null;
+    const lum = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+    // se alternan dos formas de pasar a blanco y negro: cada una anda mejor con distinta luz
+    const bin = ++vueltaZX % 2 ? new ZXing.HybridBinarizer(lum) : new ZXing.GlobalHistogramBinarizer(lum);
+    return r.decodeWithState(new ZXing.BinaryBitmap(bin)).getText();
+  }catch(e){ return null; }
+}
+
+const _cv = document.createElement("canvas");
+const _ctx = _cv.getContext("2d", { willReadFrequently: true });
+
+function pintarDiag(){
+  let t = (detector ? "lector celular+zxing" : "lector zxing") + (resVideo ? " · " + resVideo : "") +
+          (zoomMax > 1 ? " · zoom " + zoomActual + "x" : " · sin zoom") + " · " + intentos + " lecturas";
+  if(camaras.length > 1) t += " · cám " + (camIdx + 1) + "/" + camaras.length;
+  if(detecciones) t += " · " + detecciones + " detectadas";
+  if(camPref && camaras[camIdx] && camaras[camIdx].deviceId === camPref) t += " · ✓ recordada";
+  if(descartadas) t += " · descartadas " + descartadas + " (" + ultimaDescartada + ")";
+  if(intentos > 60 && detecciones === 0 && $("estadoCam").className !== "ok"){
+    $("estadoCam").textContent = zoomMax > 1
+      ? "No logra leer. Alejá un poco el celular y probá 🔍 Zoom hasta que el código ocupe el recuadro. Si no, 📷 Otra cámara."
+      : "Esta cámara no engancha. Tocá 📷 Otra cámara y volvé a probar.";
+  }
+  $("diag").textContent = t;
+}
+
+function puntajeCam(d){
+  const l = (d.label || "").toLowerCase();
+  let p = 0;
+  if(/back|tras|rear|environment|posterior/.test(l)) p += 5;
+  if(/wide|ang|0\.5|ultra/.test(l)) p -= 4;
+  if(/tele|zoom|depth|profund|mono/.test(l)) p -= 3;
+  return p;
+}
+async function enumerarCamaras(){
+  try{
+    const vids = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+    vids.sort((a, b) => puntajeCam(b) - puntajeCam(a));
+    camaras = vids;
+    if(camPref && !cicladoManual){ const k = camaras.findIndex(c => c.deviceId === camPref); if(k >= 0) camIdx = k; }
+    if(camIdx > camaras.length - 1) camIdx = 0;
+  }catch(e){ camaras = []; }
+}
+function abrirStream(deviceId){
+  // más resolución = barras más nítidas (las etiquetas de LINCE tienen barras muy finas)
+  const res = { width: { ideal: 2560 }, height: { ideal: 1440 } };
+  const v = deviceId ? Object.assign({ deviceId: { exact: deviceId } }, res) : Object.assign({ facingMode: { ideal: "environment" } }, res);
+  return navigator.mediaDevices.getUserMedia({ video: v, audio: false });
+}
+
+const NIVELES_ZOOM = [1, 1.5, 2, 2.5, 3, 4];
+let zoomPref = 2;
+try{ zoomPref = parseFloat(localStorage.getItem("zoomStockPref")) || 2; }catch(e){}
+let zoomActual = 1, zoomMax = 1, zoomMin = 1;
+async function aplicarZoom(){
+  zoomMax = zoomMin = zoomActual = 1;
+  if(!track || !track.getCapabilities) return;
+  const caps = track.getCapabilities();
+  if(!caps.zoom) return;
+  zoomMin = caps.zoom.min || 1; zoomMax = caps.zoom.max || 1;
+  const z = Math.min(Math.max(zoomPref, zoomMin), zoomMax);
+  try{ await track.applyConstraints({ advanced: [{ zoom: z }] }); zoomActual = z; }catch(e){}
+}
+async function siguienteZoom(){
+  if(!track || zoomMax <= 1) return;
+  const posibles = NIVELES_ZOOM.filter(z => z >= zoomMin && z <= zoomMax);
+  const i = posibles.findIndex(z => z > zoomActual + 0.01);
+  zoomPref = i >= 0 ? posibles[i] : posibles[0];
+  try{ localStorage.setItem("zoomStockPref", String(zoomPref)); }catch(e){}
+  await aplicarZoom(); pintarBotones(); pintarDiag();
+}
+async function prender(video, deviceId){
+  stream = await abrirStream(deviceId);
+  video.srcObject = stream;
+  await video.play();
+  track = stream.getVideoTracks()[0];
+  try{ await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }catch(e){}
+  await aplicarZoom();
+}
+
+async function arrancarLector(){
+  try{
+    if("BarcodeDetector" in window){
+      const sop = await window.BarcodeDetector.getSupportedFormats();
+      const f = ["code_39", "code_128"].filter(x => sop.includes(x));
+      detector = f.length ? new window.BarcodeDetector({ formats: f }) : null;
+    }
+  }catch(e){ detector = null; }
+  const video = $("video");
+  await enumerarCamaras();
+  const deviceId = camaras[camIdx] && camaras[camIdx].deviceId ? camaras[camIdx].deviceId : null;
+  await prender(video, deviceId);
+  if(!deviceId){
+    // recién con el permiso dado aparecen los nombres de las cámaras: pasar a la mejor
+    await enumerarCamaras();
+    const idPref = camaras[camIdx] && camaras[camIdx].deviceId;
+    const idActual = track && track.getSettings ? track.getSettings().deviceId : null;
+    if(idPref && idPref !== idActual){ stream.getTracks().forEach(t => t.stop()); await prender(video, idPref); }
+  }
+  let ocupado = false;
+  loopId = setInterval(async () => {
+    if(ocupado || video.readyState < 2 || !video.videoWidth) return;
+    ocupado = true;
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if(!resVideo) resVideo = vw + "x" + vh;
+    intentos++;
+    if(intentos % 5 === 0) pintarDiag();
+    try{
+      // solo la franja que se ve en pantalla (150 px de alto), con un poco de margen
+      const altoVisible = video.clientWidth ? 150 * vw / video.clientWidth : vh * 0.3;
+      const bandH = Math.max(2, Math.min(vh, Math.round(altoVisible * 1.4)));
+      const y0 = Math.round((vh - bandH) / 2);
+      const k = vw < 1000 ? 2 : 1;
+      _cv.width = vw * k; _cv.height = bandH * k;
+      _ctx.drawImage(video, 0, y0, vw, bandH, 0, 0, _cv.width, _cv.height);
+      let texto = null;
+      if(detector){ try{ const cs = await detector.detect(_cv); if(cs && cs.length) texto = cs[0].rawValue; }catch(e){} }
+      if(!texto || !lecturaValida(texto)){ const z = leerZX(_cv, intentos % 3 === 0); if(z) texto = z; }
+      if(texto){
+        detecciones++;
+        const id = camaras[camIdx] && camaras[camIdx].deviceId;   // recordar la cámara que lee
+        if(id && id !== camPref){ camPref = id; try{ localStorage.setItem("camStockPref", id); }catch(e){} }
+        procesarLectura(texto);
+      }
+    }catch(e){}
+    finally{ ocupado = false; }
+  }, 100);
+}
+
+function pintarBotones(){
+  $("btnZoom").style.display = zoomMax > 1 ? "block" : "none";
+  $("btnZoom").textContent = "🔍 Zoom " + String(zoomActual).replace(".", ",") + "x";
+  $("btnCam").style.display = camaras.length > 1 ? "block" : "none";
+  $("btnLuz").style.display = track && track.getCapabilities && track.getCapabilities().torch ? "block" : "none";
+  $("btnLuz").textContent = luz ? "🔦 Apagar" : "🔦 Luz";
+}
+
+async function iniciarCamara(){
+  if(!STOCK) return;
+  intentos = 0; detecciones = 0; descartadas = 0; resVideo = "";
+  $("btnEscanear").style.display = "none";
+  $("bloqueCamara").style.display = "block";   // el video tiene que estar visible para leer
+  $("estadoCam").textContent = "Iniciando cámara…"; $("estadoCam").className = "";
+  try{
+    await arrancarLector();
+    $("estadoCam").textContent = "Apuntá al código de barra de la etiqueta";
+    pintarBotones(); pintarDiag();
+  }catch(err){
+    await pararTodo();
+    $("estadoCam").textContent = err && (err.name === "NotAllowedError" || err.name === "SecurityError")
+      ? "No hay permiso para la cámara. Tocá el candado 🔒 al lado de la dirección → Permisos → Cámara: Permitir, y recargá."
+      : "No se pudo abrir la cámara (" + ((err && err.name) || "error") + ").";
+    $("btnEscanear").style.display = "block";
+  }
+}
+async function pararTodo(){
+  if(loopId){ clearInterval(loopId); loopId = null; }
+  detector = null;
+  if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+  track = null; luz = false;
+  $("video").srcObject = null;
+}
+async function detenerCamara(){
+  await pararTodo();
+  $("bloqueCamara").style.display = "none";
+  $("btnEscanear").style.display = "block";
+  $("diag").textContent = "";
+}
+async function cambiarCamara(){
+  if(camaras.length < 2) return;
+  camIdx = (camIdx + 1) % camaras.length;
+  cicladoManual = true;
+  await pararTodo(); await iniciarCamara();
+  cicladoManual = false;
+}
+async function cambiarLuz(){
+  if(!track) return;
+  try{ luz = !luz; await track.applyConstraints({ advanced: [{ torch: luz }] }); }catch(e){}
+  pintarBotones();
+}
+$("btnEscanear").addEventListener("click", iniciarCamara);
+$("btnDetener").addEventListener("click", detenerCamara);
+$("btnCam").addEventListener("click", cambiarCamara);
+$("btnZoom").addEventListener("click", siguienteZoom);
+$("btnLuz").addEventListener("click", cambiarLuz);
+$("video").addEventListener("click", async () => {   // tocar la imagen = volver a enfocar
+  if(!track) return;
+  try{
+    await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] });
+    setTimeout(() => { if(track){ try{ track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }catch(e){} } }, 1500);
+  }catch(e){}
+});
+// si la app pasa a segundo plano se apaga la cámara (no queda prendida gastando batería)
+document.addEventListener("visibilitychange", () => { if(document.hidden && stream) detenerCamara(); });
+
+// ================= IMPRIMIR =================
+// Una sola columna, letra grande, igual que Stock MIO de la PC. En el celular "Imprimir" deja elegir
+// la impresora o "Guardar como PDF".
+let formatoImp = "detalle";
+function abrirImpresion(){
+  if(!ULTIMOS.length) return;
+  $("impArts").textContent = ULTIMOS.length;
+  $("impUnid").textContent = fmt(ULTIMOS.reduce((s, c) => s + totalArticulo(c), 0));
+  $("veloImp").style.display = "flex";
+}
+document.querySelectorAll(".formato").forEach(el => el.addEventListener("click", () => {
+  formatoImp = el.dataset.f;
+  document.querySelectorAll(".formato").forEach(x => {
+    const sel = x === el;
+    x.classList.toggle("sel", sel);
+    const pt = x.querySelector(".pt"); if(pt) pt.textContent = sel ? "●" : "○";
+  });
+}));
+
+function armarHoja(){
+  const conPrecio = $("impPrecio").checked;
+  const vacios = $("mostrarVacios").checked;
+  const f = new Date(STOCK.fecha);
+  const total = ULTIMOS.reduce((s, c) => s + totalArticulo(c), 0);
+  let h = `<div class="pi-cab"><b>MIO · Stock</b><span>Lince del ${f.toLocaleDateString("es-AR")} ${f.toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit", hour12:false})}` +
+          ` · Búsqueda: ${esc($("entrada").value.trim())} · ${ULTIMOS.length} artículo${ULTIMOS.length === 1 ? "" : "s"} · ${fmt(total)} unidades` +
+          `${formatoImp === "reponer" ? " · PARA REPOSICIÓN" : ""}</span></div>`;
+  if(formatoImp === "totales"){
+    h += '<table class="pi-tot">' + ULTIMOS.map(c => {
+      const info = infoArticulo(c), tot = totalArticulo(c);
+      return `<tr><td class="c">${esc(c)}</td><td>${esc(info.desc)}</td>` +
+             `<td class="p">${conPrecio && info.precio != null ? esc(formatoPrecio(info.precio)) : ""}</td>` +
+             `<td class="t" style="${tot < 0 ? "color:#c00" : ""}">${fmt(tot)}</td></tr>`;
+    }).join("") + "</table>";
+  } else {
+    const reponer = formatoImp === "reponer";
+    for(const c of ULTIMOS){
+      const info = infoArticulo(c), tot = totalArticulo(c);
+      let { talles, filas } = grillaArticulo(c, reponer || vacios);
+      if(reponer && !filas.length) filas = [{ color: "", por: {}, tot: 0 }];
+      h += `<div class="pi-art"><div class="pi-tit"><b>${esc(c)}</b><span class="d">${esc(info.desc)}</span>` +
+           `${conPrecio && info.precio != null ? `<span class="p">${esc(formatoPrecio(info.precio))}</span>` : ""}<b>Total ${fmt(tot)}</b></div>`;
+      if(filas.length){
+        h += '<table><tr><th style="text-align:left">COLOR</th>' + talles.map(t => `<th>${esc(t || "S/T")}</th>`).join("") + "<th>TOTAL</th></tr>";
+        for(const fl of filas){
+          const nom = fl.color ? `${fl.color} ${nombreColor(fl.color)}`.trim() : "Sin color";
+          h += `<tr><td class="col">${esc(nom)}</td>` + talles.map(t => {
+            const n = fl.por[t] || 0;
+            return `<td class="${n < 0 ? "neg" : ""}">${n ? fmt(n) : ""}</td>`;
+          }).join("") + `<td class="${fl.tot < 0 ? "neg" : ""}">${fmt(fl.tot)}</td></tr>`;
+          if(reponer) h += '<tr class="pedir"><td class="col">pedir →</td>' + talles.map(() => "<td></td>").join("") + "<td></td></tr>";
+        }
+        h += "</table>";
+      } else {
+        h += '<div class="pi-sin">Sin stock.</div>';
+      }
+      h += "</div>";
+    }
+  }
+  return h;
+}
+function imprimir(){
+  $("hojaImpresion").innerHTML = armarHoja();
+  $("veloImp").style.display = "none";
+  setTimeout(() => window.print(), 50);
+}
+$("btnImprimir").addEventListener("click", abrirImpresion);
+$("btnCancelarImp").addEventListener("click", () => { $("veloImp").style.display = "none"; });
+$("veloImp").addEventListener("click", e => { if(e.target.id === "veloImp") $("veloImp").style.display = "none"; });
+$("btnHacerImp").addEventListener("click", imprimir);
 
 let pedidoInstalar = null;
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); pedidoInstalar = e; $("btnInstalar").style.display = "block"; });
