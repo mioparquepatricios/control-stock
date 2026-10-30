@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stock MIO</title>
+<meta name="theme-color" content="#111827">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Stock MIO">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icono-192.png">
+<link rel="apple-touch-icon" href="icono-192.png">
+<style>
+  :root{
+    --fondo:#F4F6F9; --tarjeta:#FFFFFF; --borde:#E3E7ED; --borde2:#D4DAE3;
+    --texto:#0F172A; --texto2:#475569; --suave:#8A96A8;
+    --acento:#2563EB; --acento-osc:#1D4ED8; --acento-suave:#EFF4FF; --gris:#F1F5F9; --cabeza:#FAFBFC;
+    --rojo:#DC2626; --verde:#059669; --amarillo:#D97706; --amarillo-suave:#FFFBEB; --grafito:#111827;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:var(--fondo);color:var(--texto);font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;font-size:15px;}
+  button{font:inherit;cursor:pointer;}
+  .barra{position:sticky;top:0;z-index:5;background:var(--grafito);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:10px;}
+  .barra img{width:34px;height:34px;border-radius:8px;}
+  .barra .tit{flex:1;min-width:0;}
+  .barra h1{margin:0;font-size:1.15rem;font-weight:600;}
+  .barra #fecha{font-size:.75rem;color:#9CA3AF;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .barra #fecha.ok{color:#6EE7B7;}
+  .barra button{background:#1F2937;color:#fff;border:1px solid #374151;border-radius:10px;padding:8px 10px;font-size:.85rem;}
+  #btnInstalar{display:none;background:var(--verde);border-color:var(--verde);}
+  main{padding:12px 12px 40px;max-width:900px;margin:0 auto;}
+
+  .card{background:var(--tarjeta);border:1px solid var(--borde);border-radius:14px;}
+  .ingreso{padding:14px;border-left:5px solid var(--acento);}
+  .ingreso .kick{font-size:.68rem;font-weight:700;letter-spacing:.06em;color:var(--acento);}
+  .ingreso h2{margin:2px 0 10px;font-size:1.1rem;font-weight:600;}
+  .buscador{display:flex;gap:8px;}
+  .campo{flex:1;display:flex;align-items:center;background:var(--gris);border:2px solid var(--gris);border-radius:12px;padding:0 10px;min-width:0;}
+  .campo:focus-within{background:#fff;border-color:var(--acento);}
+  .campo span{color:var(--suave);font-size:1rem;margin-right:6px;}
+  .campo input{flex:1;min-width:0;border:0;background:transparent;font-size:17px;padding:12px 0;outline:none;color:var(--texto);}
+  .campo .x{border:0;background:transparent;color:var(--suave);font-size:1.2rem;padding:4px;display:none;}
+  .btn{border:0;border-radius:12px;padding:0 16px;font-weight:600;font-size:1rem;}
+  .btn.prim{background:var(--acento);color:#fff;}
+  .btn.prim:active{background:var(--acento-osc);}
+  .chips{display:flex;gap:6px;overflow-x:auto;margin:10px -2px 0;padding:0 2px 2px;scrollbar-width:none;}
+  .chips::-webkit-scrollbar{display:none;}
+  .chip{flex:none;border:0;background:var(--acento-suave);color:var(--acento);border-radius:14px;padding:6px 11px;font-size:.8rem;white-space:nowrap;}
+  .opciones{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;}
+  .sw{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--texto2);user-select:none;}
+  .sw input{display:none;}
+  .sw i{width:36px;height:20px;border-radius:10px;background:var(--borde2);position:relative;transition:.15s;}
+  .sw i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.2);}
+  .sw input:checked + i{background:var(--acento);}
+  .sw input:checked + i::after{left:18px;}
+
+  #resumenLinea{margin:14px 4px 6px;font-weight:600;font-size:.95rem;}
+  .aviso{background:var(--amarillo-suave);color:var(--amarillo);border-radius:10px;padding:9px 12px;margin:8px 0;font-size:.9rem;}
+  .mensaje{color:var(--suave);padding:22px 6px;text-align:center;}
+  .resumen{padding:6px 0;margin-bottom:10px;}
+  .resumen .fila{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--gris);}
+  .resumen .fila:first-child{border-top:0;}
+  .resumen .cod{font-weight:600;min-width:74px;}
+  .resumen .desc{flex:1;min-width:0;color:var(--texto2);font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .resumen .tot{font-weight:700;min-width:30px;text-align:right;}
+  .art{padding:12px 0 12px;margin-bottom:10px;}
+  .art .cab{display:flex;align-items:baseline;gap:8px;padding:0 14px;flex-wrap:wrap;}
+  .art .cod{color:var(--acento);font-weight:700;font-size:1.05rem;}
+  .art .desc{flex:1;min-width:120px;font-size:.95rem;}
+  .art .datos{display:flex;justify-content:space-between;padding:4px 14px 10px;font-size:.88rem;color:var(--texto2);}
+  .art .datos b{color:var(--texto);font-size:1rem;}
+  .grilla{overflow-x:auto;padding:0 14px;}
+  table{border-collapse:collapse;font-size:.9rem;}
+  th,td{border:1px solid var(--borde);padding:6px 7px;text-align:center;min-width:34px;}
+  th{background:var(--cabeza);color:var(--texto2);font-size:.75rem;font-weight:600;}
+  td.color,th.color{text-align:left;position:sticky;left:0;background:#fff;min-width:96px;max-width:130px;font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  th.color{background:var(--cabeza);}
+  td.c{font-weight:700;}
+  td.pos{background:var(--acento-suave);}
+  td.neg{color:var(--rojo);}
+  td.cero{color:var(--borde2);}
+  td.tot{background:var(--cabeza);font-weight:700;}
+  .sin{padding:0 14px;color:var(--suave);font-size:.9rem;}
+
+  .clave{padding:20px 16px;margin-top:20px;text-align:center;}
+  .clave h2{margin:0 0 6px;font-size:1.15rem;}
+  .clave p{color:var(--texto2);font-size:.9rem;margin:0 0 14px;}
+  .clave input{width:100%;font-size:17px;padding:12px;border:2px solid var(--borde2);border-radius:12px;outline:none;}
+  .clave input:focus{border-color:var(--acento);}
+  .clave .btn{width:100%;height:48px;margin-top:10px;}
+  #errClave{color:var(--rojo);min-height:1.2em;margin-top:10px;font-size:.9rem;}
+  .arriba{position:fixed;right:14px;bottom:calc(16px + env(safe-area-inset-bottom));width:46px;height:46px;border-radius:50%;border:0;background:var(--grafito);color:#fff;font-size:1.2rem;display:none;box-shadow:0 4px 12px rgba(0,0,0,.25);}
+</style>
+</head>
+<body>
+<div class="barra">
+  <img src="icono-192.png" alt="">
+  <div class="tit">
+    <h1>Stock MIO</h1>
+    <div id="fecha">Cargando…</div>
+  </div>
+  <button id="btnInstalar">Instalar</button>
+  <button id="btnRecargar" title="Volver a bajar el stock">⟳</button>
+</div>
+
+<main>
+  <section id="pantallaClave" class="card clave" style="display:none">
+    <h2>🔒 Contraseña del stock</h2>
+    <p>Es la misma de "Consultar stock" de Control de Stock. Se pone una sola vez en este celular.</p>
+    <input id="inputClave" type="password" autocomplete="current-password" placeholder="Contraseña">
+    <button class="btn prim" id="btnClave">Entrar</button>
+    <div id="errClave"></div>
+  </section>
+
+  <section id="pantallaStock" style="display:none">
+    <div class="card ingreso">
+      <div class="kick">CONSULTA DE STOCK</div>
+      <h2>¿Qué artículos querés ver?</h2>
+      <form class="buscador" id="formBuscar" autocomplete="off">
+        <label class="campo">
+          <span>🔍</span>
+          <input id="entrada" type="search" enterkeyhint="search" placeholder="Código, varios, o una palabra">
+          <button type="button" class="x" id="btnBorrar" aria-label="Borrar">✕</button>
+        </label>
+        <button class="btn prim" type="submit">Buscar</button>
+      </form>
+      <div class="chips">
+        <button class="chip" data-t="106.4478">106.4478 · un artículo</button>
+        <button class="chip" data-t="106.4478 187.057">106.4478 187.057 · varios</button>
+        <button class="chip" data-t="187.05">187.05 · los que empiezan así</button>
+        <button class="chip" data-t="jean polo">jean polo · por descripción</button>
+      </div>
+      <div class="opciones">
+        <label class="sw"><input type="checkbox" id="soloConStock" checked><i></i>Solo artículos con stock</label>
+        <label class="sw"><input type="checkbox" id="mostrarVacios"><i></i>Colores sin stock</label>
+      </div>
+    </div>
+    <div id="resumenLinea"></div>
+    <div id="resultados"><div class="mensaje">Escribí uno o varios artículos y tocá Buscar.</div></div>
+  </section>
+</main>
+<button class="arriba" id="btnArriba" aria-label="Volver arriba">↑</button>
+
+<script>
+  // articulos.js (catálogo) y comun.js están en la carpeta de Control de Stock.
+  // Se cargan con la fecha en la dirección para no usar una copia vieja guardada.
+  for (const archivo of ["../articulos.js", "../comun.js"]) {
+    document.write('<script src="' + archivo + '?t=' + Date.now() + '"><\/script>');
+  }
+</script>
+<script>
+const $ = id => document.getElementById(id);
+const CLAVE_STOCK = "controlStockClave";   // la misma que usa Control de Stock
+const MAX_ARTICULOS = 60;
+let STOCK = null;   // { fecha, stock: { ART: [[color, talle, cant], ...] } }
+let POR_ART = {};   // ART -> Map("color|talle" -> cant)
+
+const b64aBytes = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+async function descifrarStock(clave){
+  const r = await fetch("../stock.json?t=" + Date.now(), { cache: "no-store" });
+  if(!r.ok) throw new Error("No se pudo bajar el stock (¿hay internet?)");
+  const c = await r.json();
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(clave), "PBKDF2", false, ["deriveKey"]);
+  const llave = await crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: b64aBytes(c.sal), iterations: c.iteraciones, hash: "SHA-256" },
+    base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  let plano;
+  try{
+    plano = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64aBytes(c.iv) }, llave, b64aBytes(c.datos));
+  }catch(e){ const err = new Error("Contraseña incorrecta"); err.clave = true; throw err; }
+  return JSON.parse(new TextDecoder().decode(plano));
+}
+
+function verPantalla(cual){
+  $("pantallaClave").style.display = cual === "clave" ? "block" : "none";
+  $("pantallaStock").style.display = cual === "stock" ? "block" : "none";
+}
+
+async function cargar(clave){
+  $("fecha").textContent = "Bajando el stock…"; $("fecha").className = "";
+  $("errClave").textContent = "";
+  try{
+    STOCK = await descifrarStock(clave);
+    try{ localStorage.setItem(CLAVE_STOCK, clave); }catch(e){}
+    POR_ART = {};
+    for(const art in STOCK.stock){
+      const m = new Map();
+      for(const [c, t, n] of STOCK.stock[art]) m.set(c + "|" + t, (m.get(c + "|" + t) || 0) + n);
+      POR_ART[art] = m;
+    }
+    const f = new Date(STOCK.fecha);
+    $("fecha").textContent = "Lince del " + f.toLocaleDateString("es-AR", {day:"2-digit", month:"2-digit"}) + " " +
+      f.toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit", hour12:false}) + " hs";
+    $("fecha").className = "ok";
+    verPantalla("stock");
+    if($("entrada").value.trim()) consultar();
+  }catch(e){
+    if(e.clave){ try{ localStorage.removeItem(CLAVE_STOCK); }catch(x){} verPantalla("clave"); $("errClave").textContent = e.message; }
+    else if(STOCK){ verPantalla("stock"); }
+    else { verPantalla("clave"); $("errClave").textContent = e.message; }
+    $("fecha").textContent = e.clave ? "Falta la contraseña" : "Sin conexión";
+  }
+}
+
+const totalArticulo = art => { let s = 0; for(const n of (POR_ART[art] || new Map()).values()) s += n; return s; };
+const fmt = n => Number.isInteger(n) ? String(n) : String(n).replace(".", ",");
+
+// Igual que en Stock MIO de la PC: con letras busca en la descripción (todas las palabras);
+// si no, cada código: exacto, código de barra de la etiqueta o comienzo de código.
+function buscar(texto, soloConStock){
+  texto = String(texto || "").trim().toUpperCase();
+  const encontrados = [], avisos = [];
+  if(!texto) return { encontrados, avisos };
+  const agregar = c => { if(!encontrados.includes(c)) encontrados.push(c); };
+  const todos = [...ARTICULOS.keys()].sort(compararArticulos);
+  if(/[A-ZÑ]/.test(texto.replace(/%\S*/g, ""))){
+    const palabras = texto.split(/\s+/);
+    for(const c of todos){
+      const d = (ARTICULOS.get(c)[0] || "").toUpperCase();
+      if(palabras.every(p => d.includes(p)) && (!soloConStock || totalArticulo(c) > 0)) agregar(c);
+    }
+    if(!encontrados.length) avisos.push(`Ningún artículo${soloConStock ? " con stock" : ""} tiene «${texto.toLowerCase()}» en la descripción.`);
+    return { encontrados, avisos };
+  }
+  for(let t of texto.split(/[\s,;]+/)){
+    if(!t) continue;
+    if(t.includes("%")) t = leerCodigo(t).articulo;
+    t = t.replace(/^\*+|\*+$/g, "");
+    if(ARTICULOS.has(t) || POR_ART[t]){ agregar(t); continue; }
+    const parecidos = todos.filter(c => c.startsWith(t) && (!soloConStock || totalArticulo(c) > 0));
+    if(parecidos.length) parecidos.forEach(agregar);
+    else avisos.push(`No encontré el artículo ${t}.`);
+  }
+  return { encontrados, avisos };
+}
+
+function grillaArticulo(art, mostrarVacios){
+  const info = infoArticulo(art);
+  const m = POR_ART[art] || new Map();
+  const talles = [...(CURVAS[info.grupo] || [])];
+  const extras = [];
+  const colores = new Set();
+  for(const [k, n] of m){
+    const [c, t] = k.split("|");
+    colores.add(c);
+    if(!talles.includes(t) && !extras.includes(t) && (n || mostrarVacios)) extras.push(t);
+  }
+  talles.push(...extras.sort(compararTalles));
+  let filas = [...colores].sort().map(c => {
+    const por = {}; let tot = 0;
+    for(const t of talles){ const n = m.get(c + "|" + t) || 0; por[t] = n; tot += n; }
+    return { color: c, por, tot };
+  }).filter(f => f.tot || mostrarVacios);
+  const usados = mostrarVacios ? talles : talles.filter(t => filas.some(f => f.por[t]));
+  return { talles: usados, filas };
+}
+
+function consultar(){
+  if(!STOCK) return;
+  const texto = $("entrada").value;
+  $("btnBorrar").style.display = texto ? "block" : "none";
+  const { encontrados, avisos } = buscar(texto, $("soloConStock").checked);
+  const caja = $("resultados");
+  if(!encontrados.length && !avisos.length){
+    $("resumenLinea").textContent = "";
+    caja.innerHTML = '<div class="mensaje">Escribí uno o varios artículos y tocá Buscar.</div>';
+    return;
+  }
+  const total = encontrados.reduce((s, c) => s + totalArticulo(c), 0);
+  $("resumenLinea").textContent = encontrados.length
+    ? `${encontrados.length} artículo${encontrados.length === 1 ? "" : "s"} · ${fmt(total)} unidades` +
+      (encontrados.length > MAX_ARTICULOS ? ` (se muestran ${MAX_ARTICULOS})` : "")
+    : "";
+  const lista = encontrados.slice(0, MAX_ARTICULOS);
+  let h = avisos.map(a => `<div class="aviso">⚠ ${esc(a)}</div>`).join("");
+  if(lista.length > 1){
+    h += '<div class="card resumen">' + lista.map(c => {
+      const tot = totalArticulo(c);
+      return `<div class="fila" data-ir="${esc(c)}"><span class="cod">${esc(c)}</span><span class="desc">${esc(infoArticulo(c).desc)}</span>` +
+             `<span class="tot" style="color:${tot < 0 ? "var(--rojo)" : tot === 0 ? "var(--suave)" : "inherit"}">${fmt(tot)}</span></div>`;
+    }).join("") + "</div>";
+  }
+  const vacios = $("mostrarVacios").checked;
+  for(const c of lista){
+    const info = infoArticulo(c);
+    const tot = totalArticulo(c);
+    const { talles, filas } = grillaArticulo(c, vacios);
+    h += `<div class="card art" id="art-${esc(c)}">
+      <div class="cab"><span class="cod">${esc(c)}</span><span class="desc">${esc(info.desc || "(no está en la lista de artículos)")}</span></div>
+      <div class="datos"><span>${info.precio != null ? esc(formatoPrecio(info.precio)) : ""}</span><span>Total: <b style="color:${tot < 0 ? "var(--rojo)" : "inherit"}">${fmt(tot)}</b></span></div>`;
+    if(!filas.length){
+      h += '<div class="sin">Sin stock en ningún color ni talle.</div>';
+    } else {
+      h += '<div class="grilla"><table><tr><th class="color">COLOR</th>' + talles.map(t => `<th>${esc(t || "S/T")}</th>`).join("") + '<th>TOTAL</th></tr>';
+      for(const f of filas){
+        const nom = f.color ? `${f.color} ${nombreColor(f.color)}`.trim() : "Sin color";
+        h += `<tr><td class="color">${esc(nom)}</td>` + talles.map(t => {
+          const n = f.por[t] || 0;
+          return `<td class="${n > 0 ? "c pos" : n < 0 ? "c neg" : "cero"}">${n ? fmt(n) : "·"}</td>`;
+        }).join("") + `<td class="tot${f.tot < 0 ? " neg" : ""}">${fmt(f.tot)}</td></tr>`;
+      }
+      h += "</table></div>";
+    }
+    h += "</div>";
+  }
+  caja.innerHTML = h;
+}
+
+$("formBuscar").addEventListener("submit", e => { e.preventDefault(); $("entrada").blur(); consultar(); });
+$("entrada").addEventListener("input", () => { $("btnBorrar").style.display = $("entrada").value ? "block" : "none"; });
+$("btnBorrar").addEventListener("click", () => { $("entrada").value = ""; consultar(); $("entrada").focus(); });
+document.querySelectorAll(".chip").forEach(b => b.addEventListener("click", () => { $("entrada").value = b.dataset.t; consultar(); }));
+$("soloConStock").addEventListener("change", consultar);
+$("mostrarVacios").addEventListener("change", consultar);
+$("resultados").addEventListener("click", e => {
+  const fila = e.target.closest("[data-ir]");
+  if(fila) document.getElementById("art-" + fila.dataset.ir)?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+$("btnClave").addEventListener("click", () => cargar($("inputClave").value.trim()));
+$("inputClave").addEventListener("keydown", e => { if(e.key === "Enter") cargar(e.target.value.trim()); });
+$("btnRecargar").addEventListener("click", () => {
+  let c = ""; try{ c = localStorage.getItem(CLAVE_STOCK) || ""; }catch(e){}
+  if(c) cargar(c); else verPantalla("clave");
+});
+window.addEventListener("scroll", () => { $("btnArriba").style.display = scrollY > 500 ? "block" : "none"; });
+$("btnArriba").addEventListener("click", () => scrollTo({ top: 0, behavior: "smooth" }));
+
+let pedidoInstalar = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); pedidoInstalar = e; $("btnInstalar").style.display = "block"; });
+$("btnInstalar").addEventListener("click", async () => {
+  if(!pedidoInstalar) return;
+  pedidoInstalar.prompt();
+  await pedidoInstalar.userChoice;
+  pedidoInstalar = null; $("btnInstalar").style.display = "none";
+});
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+let guardada = "";
+try{ guardada = localStorage.getItem(CLAVE_STOCK) || ""; }catch(e){}
+if(guardada) cargar(guardada); else { verPantalla("clave"); $("fecha").textContent = "Falta la contraseña"; }
+</script>
+</body>
+</html>
